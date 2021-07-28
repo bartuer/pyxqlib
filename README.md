@@ -8,3 +8,11 @@ python setup.py install
 ```
 import pyxqlib
 ```
+
+# develop
+```
+make
+cd qlibc/test
+make
+```
+
