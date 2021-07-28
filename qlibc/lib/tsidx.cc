@@ -1,9 +1,8 @@
-#include "order.h"
+#include "tsidx.h"
 #include <functional>
 #include <numeric>
 
 namespace qlibc {
-Order::Order() {}
-Order::~Order() {}
-
+TSIdx::TSIdx() {}
+TSIdx::~TSIdx() {}
 } // namespace qlibc

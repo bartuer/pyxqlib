@@ -7,10 +7,12 @@ OPTOBJ=.libs/cmdopt.o
 LIBOPT=.libs/libcmdopt.a
 QUOTEOBJ=.libs/quote.o
 ORDEROBJ=.libs/order.o
+TSIDXOBJ=.libs/tsidx.o
 QUOTE=quote_test
 ORDER=order_test
+TSIDX=tsidx_test
 
-default:$(QUOTE) $(ORDER)
+default:$(QUOTE) $(ORDER) $(TSIDX)
 
 .libs/%.o:%.c
 	@echo CC $(<F)
@@ -28,6 +30,11 @@ $(ORDER):$(ORDEROBJ) $(LIBOPT) $(LIBQLIBC)
 	@echo LD $(ORDER)
 	$(LD) -o $@ $^
 
+
+$(TSIDX):$(TSIDXOBJ) $(LIBOPT) $(LIBQLIBC)
+	@echo LD $(TSIDX)
+	$(LD) -o $@ $^
+
 clean:
 	find .libs -type f |xargs rm
-	rm $(QUOTE) $(ORDER)
+	rm $(QUOTE) $(ORDER) $(TSIDX)

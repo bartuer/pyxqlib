@@ -130,11 +130,12 @@ dmypy.json
 
 qlibc/test/order_test
 qlibc/test/quote_test
+qlibc/test/tsidx_test
 qlibc/test/.libs/cmdopt.o
 qlibc/test/.libs/quote.o
 qlibc/test/.libs/order.o
 qlibc/test/.libs/libcmdopt.a
-
 py37env/
 src/quote.cpp
 src/order.cpp
+qlibc/test/.libs/

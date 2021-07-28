@@ -9,7 +9,7 @@
 #include <iostream>
 #include <string>
 
-#include <order.h>
+#include <tsidx.h>
 
 #include "cmdopt.h"
 
