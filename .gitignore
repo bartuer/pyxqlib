@@ -141,3 +141,4 @@ src/order.cpp
 qlibc/test/.libs/
 src/pyxqlib.cpp
 /qlibc/test/tsidx
+data
