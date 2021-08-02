@@ -2,12 +2,7 @@
 
 from libc.stdint cimport uint32_t
 from libc.stdint cimport int32_t
-from libcpp.vector cimport vector
-from libc.string cimport memset
-from libc.stdio cimport printf
 import zlib
-import numpy as np
-import json
 import sys
 
 cimport tsidx

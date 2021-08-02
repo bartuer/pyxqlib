@@ -15,7 +15,7 @@ TARGET=$(VIRTUAL_ENV)/lib/python$(PYTHON_VERSION)/site-packages/pyxqlib-0.0.1-py
 LIB_QLIBC_LIB=$(ROOT)/qlibc/lib
 LIB_QLIBC_INCLUDE=$(ROOT)/qlibc/inc
 LIB_QLIBC_OBJECT_DIR=$(ROOT)/build/temp.linux-x86_64-$(PYTHON_VERSION)/qlibc/lib
-LIB_QLIBC_OBJECT:=$(LIB_QLIBC_OBJECT_DIR)/quote.o $(LIB_QLIBC_OBJECT_DIR)/order.o $(LIB_QLIBC_OBJECT_DIR)/tsidx.o
+LIB_QLIBC_OBJECT:=$(LIB_QLIBC_OBJECT_DIR)/tsidx.o
 LIB_QLIBC_CFLAGS=$(CFLAGS) -DQLIBC_USE_SSE4 -msse4 -DQLIBC_USE_POPCNT -mpopcnt -I$(LIB_QLIBC_LIB) -I$(LIB_QLIBC_INCLUDE)
 LIB_QLIBC_OUTPUT_DIR=$(ROOT)/build/temp.linux-x86_64-$(PYTHON_VERSION)
 LIB_QLIBC_S=libqlibc.a
@@ -26,7 +26,7 @@ NUMPY_HEAD=$(VIRTUAL_ENV)/lib/python$(PYTHON_VERSION)/site-packages/numpy/core/i
 EXT_CFLAGS=$(CFLAGS) -I$(LIB_QLIBC_INCLUDE) -I$(PYTHON_HEAD) -I $(NUMPY_HEAD)
 EXT_SRC_DIR=$(ROOT)/src
 EXT_OBJECT_DIR=$(ROOT)/build/temp.linux-x86_64-$(PYTHON_VERSION)/src
-EXT_OBJECT:=$(EXT_OBJECT_DIR)/quote.o $(EXT_OBJECT_DIR)/order.o $(EXT_OBJECT_DIR)/pyxqlib.o
+EXT_OBJECT:=$(EXT_OBJECT_DIR)/pyxqlib.o
 EXT_OUTPUT_DIR=$(ROOT)/build/lib.linux-x86_64-$(PYTHON_VERSION)
 EXT=pyxqlib.cpython-$(PYTHONVERSION)m-x86_64-linux-gnu.so
 
@@ -40,14 +40,6 @@ lib_qlibc:$(LIB_QLIBC_OBJECT)
 	@echo AR lib
 	$(AR) rc $(LIB_QLIBC_OUTPUT_DIR)/$(LIB_QLIBC_S) $(LIB_QLIBC_OBJECT)
 	$(LD) $(LIB_QLIBC_FLAGS) $(LIB_QLIBC_OBJECT) -o $(LIB_QLIBC_OUTPUT_DIR)/$(LIB_QLIBC_D)
-
-$(EXT_SRC_DIR)/quote.cpp:$(EXT_SRC_DIR)/quote.pxd
-	@echo CYTHON $(<F)
-	$(CYTHON) $< $(CYTHON_FLAGS) -o $@
-
-$(EXT_SRC_DIR)/order.cpp:$(EXT_SRC_DIR)/order.pxd
-	@echo CYTHON $(<F)
-	$(CYTHON) $< $(CYTHON_FLAGS) -o $@
 
 $(EXT_SRC_DIR)/tsidx.cpp:$(EXT_SRC_DIR)/tsidx.pxd
 	@echo CYTHON $(<F)
