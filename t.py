@@ -9,6 +9,7 @@ from collections import OrderedDict
 import inspect
 import pandas as pd
 
+import pyxqlib
 
 class BaseQuote:
 
@@ -61,13 +62,14 @@ class MustelasQuote(BaseQuote):
     def __init__(self, df_file: str):
         quote_df = pd.read_pickle(df_file)
         super().__init__(quote_df=quote_df)
-        quote_dict = {}
+        self.d = {}
+        self.c = {}
+        self.i = pyxqlib.Tsidx()
         for stock_id, stock_val in quote_df.groupby(level="instrument"):
-            quote_dict[stock_id] = stock_val.droplevel(level="instrument")
-        self.data = quote_dict
+            self.d[stock_id] = stock_val.droplevel(level="instrument")
 
     def get_all_stock(self):
-        return self.data.keys()
+        return self.d.keys()
 
     def get_data(self, stock_id, start_time, end_time, field, method):
         pass

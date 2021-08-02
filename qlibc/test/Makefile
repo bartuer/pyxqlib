@@ -5,6 +5,8 @@ CFLAGS=-I. -I../inc -I../lib -march=native -Wall -Weffc++ -O2
 
 OPTOBJ=.libs/cmdopt.o
 LIBOPT=.libs/libcmdopt.a
+LIB_DIR=../../build/temp.linux-x86_64-3.7/qlibc/lib
+LIBQLIBC=$(LIB_DIR)/libqlibc.so
 TSIDXOBJ=.libs/tsidx.o
 TSIDX=tsidx
 
@@ -20,7 +22,7 @@ $(LIBOPT):$(OPTOBJ)
 
 $(TSIDX):$(TSIDXOBJ) $(LIBOPT) $(LIBQLIBC)
 	@echo LD $(TSIDX)
-	$(LD) -o $@ $^
+	$(LD) -L $(LIB_DIR) -lqlibc -o $@ $^
 
 clean:
 	find .libs -type f |xargs rm

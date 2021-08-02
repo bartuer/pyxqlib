@@ -19,7 +19,7 @@ LIB_QLIBC_OBJECT:=$(LIB_QLIBC_OBJECT_DIR)/tsidx.o
 LIB_QLIBC_CFLAGS=$(CFLAGS) -DQLIBC_USE_SSE4 -msse4 -DQLIBC_USE_POPCNT -mpopcnt -I$(LIB_QLIBC_LIB) -I$(LIB_QLIBC_INCLUDE)
 LIB_QLIBC_OUTPUT_DIR=$(ROOT)/build/temp.linux-x86_64-$(PYTHON_VERSION)
 LIB_QLIBC_S=libqlibc.a
-LIB_QLIBC_D=libqlibc.so
+LIB_QLIBC_D=qlibc/lib/libqlibc.so
 
 PYTHON_HEAD=$(VIRTUAL_ENV)/include
 NUMPY_HEAD=$(VIRTUAL_ENV)/lib/python$(PYTHON_VERSION)/site-packages/numpy/core/include
