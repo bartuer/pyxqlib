@@ -26,7 +26,7 @@ NUMPY_HEAD=$(VIRTUAL_ENV)/lib/python$(PYTHON_VERSION)/site-packages/numpy/core/i
 EXT_CFLAGS=$(CFLAGS) -I$(LIB_QLIBC_INCLUDE) -I$(PYTHON_HEAD) -I $(NUMPY_HEAD)
 EXT_SRC_DIR=$(ROOT)/src
 EXT_OBJECT_DIR=$(ROOT)/build/temp.linux-x86_64-$(PYTHON_VERSION)/src
-EXT_OBJECT:=$(EXT_OBJECT_DIR)/quote.o $(EXT_OBJECT_DIR)/order.o
+EXT_OBJECT:=$(EXT_OBJECT_DIR)/quote.o $(EXT_OBJECT_DIR)/order.o $(EXT_OBJECT_DIR)/pyxqlib.o
 EXT_OUTPUT_DIR=$(ROOT)/build/lib.linux-x86_64-$(PYTHON_VERSION)
 EXT=pyxqlib.cpython-$(PYTHONVERSION)m-x86_64-linux-gnu.so
 
@@ -46,6 +46,10 @@ $(EXT_SRC_DIR)/quote.cpp:$(EXT_SRC_DIR)/quote.pxd
 	$(CYTHON) $< $(CYTHON_FLAGS) -o $@
 
 $(EXT_SRC_DIR)/order.cpp:$(EXT_SRC_DIR)/order.pxd
+	@echo CYTHON $(<F)
+	$(CYTHON) $< $(CYTHON_FLAGS) -o $@
+
+$(EXT_SRC_DIR)/tsidx.cpp:$(EXT_SRC_DIR)/tsidx.pxd
 	@echo CYTHON $(<F)
 	$(CYTHON) $< $(CYTHON_FLAGS) -o $@
 
@@ -74,6 +78,6 @@ install:
 	pip install .
 
 clean:
-	$(RM) -r build dist src/*.egg-info
+	$(RM) -r dist src/*.egg-info
 	find . -name __pycache__ -exec rm -r {} +
 	find ./build -type f |xargs rm
