@@ -1,5 +1,6 @@
 #include "tsidx.h"
 #include <functional>
+#include <iostream>
 #include <numeric>
 
 #define DAY_SECS 86400
