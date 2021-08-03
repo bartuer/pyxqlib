@@ -12,7 +12,7 @@ from cython import boundscheck, wraparound
 cdef class _Tsidx:
     cdef tsidx.TSIdx* _idx
     cdef int _id
-    cdef int _check_sum
+    cdef uint32_t _check_sum
     cdef uint32_t _start
     cdef uint32_t _end
     cdef uint32_t _size
@@ -38,11 +38,12 @@ cdef class _Tsidx:
     def __hash__(self):
         return self._check_sum
     
-    def __init__(self, list check_sum_list):
+    def __cinit__(self, list check_sum_list):
         if self._idx:
             return
         self._idx = new tsidx.TSIdx()
         self._check_sums_ = check_sum_list
+
 
     def __getitem__(self, x):
         if x.start is None:
@@ -54,9 +55,7 @@ cdef class _Tsidx:
             start_, stop_ = self._idx.index(start, stop)
             return slice(start_, stop_)
         
-    @boundscheck(False)
-    @wraparound(False)
-    cdef load(self, uint32_t[::1] ts):
+    def load(self, uint32_t[::1] ts):
         self._check_sum = zlib.crc32(ts)
         if (self._check_sum in self._check_sums_):
             return 0
@@ -68,7 +67,7 @@ cdef class _Tsidx:
             if res:
                 return 0
             else:
-                return self.check_sum
+                return self._check_sum
 
     def __dealloc__(self):
         if self._idx:
@@ -79,7 +78,13 @@ cdef class Tsidx:
     cdef list check_sum_list
     cdef dict ids
     cdef dict sums
-    
+
+    def __init__(self):
+        self.check_sum_list = []
+        self.idxes = []
+        self.ids = {}
+        self.sums = {}
+        
     def __len__(self):
         return len(self.idxes)
 

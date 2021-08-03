@@ -8,8 +8,8 @@ from collections import OrderedDict
 
 import inspect
 import pandas as pd
-
-import pyxqlib
+import numpy as np
+from pyxqlib import Tsidx
 
 class BaseQuote:
 
@@ -62,14 +62,21 @@ class MustelasQuote(BaseQuote):
     def __init__(self, df_file: str):
         quote_df = pd.read_pickle(df_file)
         super().__init__(quote_df=quote_df)
-        self.d = {}
-        self.c = {}
-        self.i = pyxqlib.Tsidx()
-        for stock_id, stock_val in quote_df.groupby(level="instrument"):
-            self.d[stock_id] = stock_val.droplevel(level="instrument")
+        self.d = {}             # cache
+        self.s = {}             # name
+        self.i = Tsidx()        # index
+        j = 0
+        for id, v in quote_df.groupby(level="instrument"):
+            self.s[id] = j
+            d = v.droplevel(level="instrument")
+            if not hasattr(self, 'c'):
+                self.c = dict((c,i) for i, c in enumerate(d.columns))
+            self.i[j] = np.asarray(d.index.view(), dtype='datetime64[s]').astype('uint32')
+            self.d[id] = np.array([d[[f]].to_numpy(dtype=d[[f]].dtypes[0]).T[0] for f in self.c.keys()])
+            j += 1
 
     def get_all_stock(self):
-        return self.d.keys()
+        return self.s.keys()
 
     def get_data(self, stock_id, start_time, end_time, field, method):
         pass

@@ -56,15 +56,18 @@ int TSIdx::build(uint32_t *ts, size_t len) {
     }
   }
 
-  for (size_t i = len - 1, di = this->days - 1; i >= 0; i--) {
+  size_t di = this->days - 1;
+  for (size_t i = len - 1; i >= 0; i--) {
     uint32_t t = ts[i];
-    size_t d = this->d_end - t / DAY_SECS;
+    uint32_t d = t / DAY_SECS - this->d_beg;
     while (di >= d) {
-      assert(di >= 0);
       if (di < 0) {
         return -2;
       }
       this->d_xdi[di] = i + 1;
+      if (di == 0) {
+        return 0;
+      }
       di--;
     }
   }
