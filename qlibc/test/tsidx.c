@@ -8,7 +8,6 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-
 #include <tsidx.h>
 
 #include "cmdopt.h"

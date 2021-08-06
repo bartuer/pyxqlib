@@ -7,8 +7,8 @@ LD=x86_64-linux-gnu-g++
 AR=x86_64-linux-gnu-ar
 CYTHON=cython
 CYTHON_FLAGS=--cplus
-CFLAGS=-pthread -DNDEBUG -D_DEBUG  -fwrapv -g  -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security -D_FORTIFY_SOURCE=2 -fPIC
-# CFLAGS=-pthread -DNDEBUG  -fwrapv -O3  -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security -D_FORTIFY_SOURCE=2 -fPIC
+# CFLAGS=-pthread -DNDEBUG -D_DEBUG  -fwrapv -g  -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security -D_FORTIFY_SOURCE=2 -fPIC
+CFLAGS=-pthread -DNDEBUG  -fwrapv -O3  -Wall -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security -D_FORTIFY_SOURCE=2 -fPIC
 LDFLAGS=-pthread -shared -Wl,-O2 -Wl,-Bsymbolic-functions -Wl,-Bsymbolic-functions -Wl,-z,relro -Wl,-Bsymbolic-functions -Wl,-z,relro -fstack-protector --param=ssp-buffer-size=4 -Wformat -Werror=format-security -D_FORTIFY_SOURCE=2
 LIB_QLIBC_FLAGS=-fPIC -DPIC -shared
 TARGET=$(VIRTUAL_ENV)/lib/python$(PYTHON_VERSION)/site-packages/pyxqlib-0.0.1-py$(PYTHON_VERSION)-linux-x86_64.egg/pyxqlib.cpython-$(PYTHONVERSION)m-x86_64-linux-gnu.so

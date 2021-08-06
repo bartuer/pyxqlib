@@ -2,13 +2,10 @@
 # Licensed under the MIT License.
 
 
-import logging
 from typing import List, Tuple, Union, Callable, Iterable, Dict
-from collections import OrderedDict
-
-import inspect
 import pandas as pd
 import numpy as np
+import json,codecs
 from pyxqlib import Tsidx
 
 class BaseQuote:
@@ -77,15 +74,18 @@ class MustelasQuote(BaseQuote):
             d = v.droplevel(level="instrument")
             if not hasattr(self, 'c'):
                 self.c = dict((c,i) for i, c in enumerate(d.columns))
+            arr = t2i(d.index.view()).tolist()
+            json.dump(arr, codecs.open('data/ts.json', 'w', encoding='utf-8'), separators=(',', ':'), sort_keys=True, indent=4) 
             self.i[j] = t2i(d.index.view())
             self.d[s] = np.array([d2n(d,f) for f in self.c.keys()])
             j += 1
-
+            break
+        
     def get_all_stock(self):
         return self.s.keys()
 
     def idx(self, i, b, e, f):
-        j,k = t2i([b,e])
+        j, k = t2i([b,e])
         return self.d[i][self.c[f]][self.i[self.s[i]][j:k]]
 
     def get_data(self, stock_id, start_time, end_time, field, method):

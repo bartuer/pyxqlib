@@ -34,6 +34,10 @@ private:
   uint32_t *d_idx;
   uint32_t *d_xdi;
   uint32_t *t_idx;
+
+  // Disallows copy and assignment.
+  TSIdx(const TSIdx &);
+  TSIdx &operator=(const TSIdx &);
 };
 } // namespace qlibc
 #endif // QLIBC_TSIDX_H_

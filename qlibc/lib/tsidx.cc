@@ -7,6 +7,7 @@
 namespace qlibc {
 TSIdx::TSIdx()
     : d_beg(0), d_end(0), days(0), d_idx(NULL), d_xdi(NULL), t_idx(NULL) {}
+
 TSIdx::~TSIdx() {
   if (d_idx != NULL) {
     free(d_idx);

@@ -16,6 +16,10 @@ default: $(TSIDX)
 	@echo CC $(<F)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(LIBQLIBC):
+	@echo BUILD LIB
+	cd ../../; make
+
 $(LIBOPT):$(OPTOBJ)
 	@echo AR libcmdopt
 	$(AR) rc $@ $<
@@ -27,3 +31,6 @@ $(TSIDX):$(TSIDXOBJ) $(LIBOPT) $(LIBQLIBC)
 clean:
 	find .libs -type f |xargs rm
 	rm $(TSIDX)
+
+libclean:
+	cd ../../; make clean
