@@ -14,16 +14,22 @@
 #include <time.h>
 #include <tsidx.h>
 
+const char *time_stamp_format = "%Y-%m-%d %H:%M:%S";
+
 inline time_t str2time_t(const char *time_str) {
   struct tm tm;
-  strptime(time_str, "%Y-%m-%d %H:%M:%S", &tm);
+  strptime(time_str, time_stamp_format, &tm);
   return mktime(&tm);
 }
 
 inline char *time_t2str(const time_t t, char *time_str) {
   memset(time_str, 0, 20);
-  std::strftime(time_str, 20, "%Y-%m-%d %H:%M:%S", std::localtime(&t));
+  std::strftime(time_str, 20, time_stamp_format, std::localtime(&t));
   return time_str;
+}
+
+inline char *time_t2strw(const time_t t) {
+  return std::asctime(std::localtime(&t));
 }
 
 namespace {
@@ -111,6 +117,9 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  qlibc::TSIdx *tsidx = new qlibc::TSIdx();
+  tsidx->build(ts.data(), ts.size());
+
   std::cout << "ts.size(): " << ts.size() << std::endl;
   std::cout << str2time_t("2020-01-02 09:30:00") << ", " << 1577957400
             << std::endl;
@@ -118,4 +127,15 @@ int main(int argc, char *argv[]) {
   time_t t = 1577957400;
   char tfstr[20];
   std::cout << time_t2str(t, tfstr) << std::endl;
+
+  time_t tt = str2time_t("2020-05-31 07:30:00");
+  uint32_t start = tsidx->start(tt);
+
+  std::cout << "start:" << start << ", " << time_t2strw(tt) << "->"
+            << time_t2str(ts[start], tfstr) << std::endl;
+
+  uint32_t stop = tsidx->stop(tt);
+
+  std::cout << "stop:" << stop << ", " << time_t2strw(tt) << "<-"
+            << time_t2str(ts[stop], tfstr) << std::endl;
 }
