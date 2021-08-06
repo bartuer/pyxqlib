@@ -3,9 +3,9 @@
 #include <io.h>
 #include <stdio.h>
 #endif // _WIN32
-
 #include "cmdopt.h"
 #include "picojson.h"
+#include <chrono>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
@@ -13,6 +13,8 @@
 #include <string>
 #include <time.h>
 #include <tsidx.h>
+
+using namespace std::chrono;
 
 const char *time_stamp_format = "%Y-%m-%d %H:%M:%S";
 
@@ -28,9 +30,43 @@ inline char *time_t2str(const time_t t, char *time_str) {
   return time_str;
 }
 
-inline char *time_t2strw(const time_t t) {
-  return std::asctime(std::localtime(&t));
+inline std::string time_t2strw(const time_t t) {
+  std::string str = std::asctime(std::localtime(&t));
+  str.pop_back();
+  return str;
 }
+
+class Clock {
+public:
+  Clock() : cl_(std::clock()), beg_(high_resolution_clock::now()) {}
+
+  void reset() {
+    cl_ = std::clock();
+    beg_ = high_resolution_clock::now();
+  }
+
+  double elasped() const {
+    std::clock_t cur = std::clock();
+    return static_cast<double>(cur - cl_) / static_cast<double>(CLOCKS_PER_SEC);
+  }
+
+  double hi_elasped() const {
+    time_point<system_clock> cur = high_resolution_clock::now();
+    duration<double, std::nano> duration = cur - beg_;
+    return duration.count();
+  }
+
+  void print_start(time_t tt, uint32_t start, std::vector<uint32_t> ts,
+                   char *tfstr) {
+    double dur = hi_elasped();
+    std::cout << dur << "ns start:" << start << ", " << time_t2strw(tt)
+              << " -> " << time_t2str(ts[start], tfstr) << std::endl;
+  }
+
+private:
+  std::clock_t cl_;
+  time_point<system_clock> beg_;
+};
 
 namespace {
 int param_num = 7;
@@ -129,13 +165,25 @@ int main(int argc, char *argv[]) {
   std::cout << time_t2str(t, tfstr) << std::endl;
 
   time_t tt = str2time_t("2020-05-31 07:30:00");
+
+  Clock cl;
   uint32_t start = tsidx->start(tt);
 
-  std::cout << "start:" << start << ", " << time_t2strw(tt) << "->"
-            << time_t2str(ts[start], tfstr) << std::endl;
+  std::cout << cl.hi_elasped() << "ns start:" << start << ", "
+            << time_t2strw(tt) << " -> " << time_t2str(ts[start], tfstr)
+            << std::endl;
 
+  cl.reset();
   uint32_t stop = tsidx->stop(tt);
 
-  std::cout << "stop:" << stop << ", " << time_t2strw(tt) << "<-"
-            << time_t2str(ts[stop], tfstr) << std::endl;
+  std::cout << cl.hi_elasped() << "ns stop :" << stop << ", " << time_t2strw(tt)
+            << " <- " << time_t2str(ts[stop], tfstr) << std::endl;
+
+  time_t tt1 = str2time_t("2020-06-01 12:30:00");
+  Clock cl1;
+  start = tsidx->start(tt1);
+
+  std::cout << cl1.hi_elasped() << "ns start:" << start << ", "
+            << time_t2strw(tt1) << " -> " << time_t2str(ts[start], tfstr)
+            << std::endl;
 }
