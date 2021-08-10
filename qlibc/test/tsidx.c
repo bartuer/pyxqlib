@@ -38,35 +38,49 @@ inline std::string time_t2strw(const time_t t) {
 
 class Clock {
 public:
-  Clock() : cl_(std::clock()), beg_(high_resolution_clock::now()) {}
+  Clock() : beg_(high_resolution_clock::now()) {}
 
-  void reset() {
-    cl_ = std::clock();
-    beg_ = high_resolution_clock::now();
-  }
+  inline void reset() { beg_ = high_resolution_clock::now(); }
 
-  double elasped() const {
-    std::clock_t cur = std::clock();
-    return static_cast<double>(cur - cl_) / static_cast<double>(CLOCKS_PER_SEC);
-  }
-
-  double hi_elasped() const {
-    time_point<system_clock> cur = high_resolution_clock::now();
-    duration<double, std::nano> duration = cur - beg_;
+  inline double elasped() const {
+    duration<double, std::nano> duration = high_resolution_clock::now() - beg_;
     return duration.count();
   }
 
-  void print_start(time_t tt, uint32_t start, std::vector<uint32_t> ts,
-                   char *tfstr) {
-    double dur = hi_elasped();
-    std::cout << dur << "ns start:" << start << ", " << time_t2strw(tt)
-              << " -> " << time_t2str(ts[start], tfstr) << std::endl;
-  }
-
 private:
-  std::clock_t cl_;
   time_point<system_clock> beg_;
 };
+
+inline void print_start(double elaspe, uint32_t start, time_t &input,
+                        std::vector<uint32_t> &time_series, char *output) {
+
+  return;
+  std::cout << start << ", " << time_t2strw(input) << " -> "
+            << time_t2str(time_series[start], output) << " [" << elaspe
+            << "ns]: " << std::endl;
+}
+
+inline void print_stop(double elaspe, uint32_t stop, time_t &input,
+                       std::vector<uint32_t> &time_series, char *output) {
+  return;
+  std::cout << stop << ", " << time_t2str(time_series[stop], output) << " <- "
+            << time_t2strw(input) << " [" << elaspe << "ns]: " << std::endl;
+}
+
+enum test_t { start_test = 0, stop_test = 1 };
+union timestamp_t {
+  time_t start;
+  time_t stop;
+};
+
+typedef struct {
+  enum test_t type;
+  char name[32];
+  union timestamp_t timestamp;
+  uint32_t expect;
+  bool result;
+  double duration;
+} test_case;
 
 namespace {
 int param_num = 7;
@@ -144,46 +158,87 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  qlibc::TSIdx *tsidx = new qlibc::TSIdx();
+  tsidx->build(ts.data(), ts.size());
+  char tfstr[20];
+
   std::ifstream time_case(case_filename);
-  picojson::value c;
-  time_case >> c;
+  picojson::value tests;
+  time_case >> tests;
   if (time_case.fail()) {
     std::cerr << "JSON parse error -c " << case_filename << ", "
               << picojson::get_last_error() << std::endl;
     return -1;
   }
 
-  qlibc::TSIdx *tsidx = new qlibc::TSIdx();
-  tsidx->build(ts.data(), ts.size());
-
-  std::cout << "ts.size(): " << ts.size() << std::endl;
-  std::cout << str2time_t("2020-01-02 09:30:00") << ", " << 1577957400
-            << std::endl;
-
-  time_t t = 1577957400;
-  char tfstr[20];
-  std::cout << time_t2str(t, tfstr) << std::endl;
+  std::vector<test_case> tcs;
+  if (tests.is<picojson::array>()) {
+    const picojson::array &cs = tests.get<picojson::array>();
+    for (picojson::array::const_iterator j = cs.begin(); j != cs.end(); ++j) {
+      const picojson::value::object &c = j->get<picojson::object>();
+      test_case tc;
+      for (picojson::value::object::const_iterator i = c.begin(); i != c.end();
+           i++) {
+        if (i->first == "start") {
+          tc.timestamp.start = str2time_t(i->second.to_str().c_str());
+        } else if (i->first == "stop") {
+          tc.timestamp.stop = str2time_t(i->second.to_str().c_str());
+        } else if (i->first == "type") {
+          if (i->second.to_str() == "start") {
+            tc.type = start_test;
+          } else if (i->second.to_str() == "stop") {
+            tc.type = stop_test;
+          } else {
+            std::cerr << "test case JSON parse error, type should be one of "
+                         "start and stop"
+                      << std::endl;
+            return -2;
+          }
+        } else if (i->first == "expect") {
+          tc.expect = i->second.get<double>();
+        } else if (i->first == "name") {
+          memset(tc.name, 0, 32);
+          strncpy(tc.name, i->second.to_str().c_str(), 31);
+        } else {
+          std::cerr << "test case JSON parse error, field should be one of "
+                       "start, stop, name, expect and type"
+                    << std::endl;
+          return -2;
+        }
+      }
+      tc.result = false;
+      tc.duration = 0.0;
+      tcs.push_back(tc);
+    }
+  }
 
   time_t tt = str2time_t("2020-05-31 07:30:00");
-
   Clock cl;
   uint32_t start = tsidx->start(tt);
-
-  std::cout << cl.hi_elasped() << "ns start:" << start << ", "
-            << time_t2strw(tt) << " -> " << time_t2str(ts[start], tfstr)
-            << std::endl;
+  double e = cl.elasped();
+  print_start(e, start, tt, ts, tfstr);
 
   cl.reset();
   uint32_t stop = tsidx->stop(tt);
+  e = cl.elasped();
+  print_stop(e, stop, tt, ts, tfstr);
 
-  std::cout << cl.hi_elasped() << "ns stop :" << stop << ", " << time_t2strw(tt)
-            << " <- " << time_t2str(ts[stop], tfstr) << std::endl;
+  tt = str2time_t("2020-06-01 12:30:00");
+  cl.reset();
+  start = tsidx->start(tt);
+  e = cl.elasped();
+  print_start(e, start, tt, ts, tfstr);
 
-  time_t tt1 = str2time_t("2020-06-01 12:30:00");
-  Clock cl1;
-  start = tsidx->start(tt1);
+  picojson::array &cs = tests.get<picojson::array>();
+  std::vector<test_case>::const_iterator i;
+  picojson::array::iterator j;
+  for (i = tcs.begin(), j = cs.begin(); j != cs.end(); ++j, ++i) {
+    picojson::value::object &c = j->get<picojson::object>();
+    test_case tc = *i;
+    c["duration"] = picojson::value(tc.duration);
+    c["result"] = picojson::value(tc.result);
+  }
 
-  std::cout << cl1.hi_elasped() << "ns start:" << start << ", "
-            << time_t2strw(tt1) << " -> " << time_t2str(ts[start], tfstr)
-            << std::endl;
+  std::string json_str = tests.serialize();
+  std::cout << json_str << std::endl;
 }
