@@ -1,11 +1,11 @@
 [{
     "type": "start",
     "name": "out of range",
-    "start": "2020-01-01",
+    "start": "2020-01-01 00:00:00",
     "expect": 1577957400
 }, {
     "type": "stop",
     "name": "out of range",
-    "stop": "2020-07-01",
+    "stop": "2020-07-01 00:00:00",
     "expect": 1593529140
 }]

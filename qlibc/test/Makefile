@@ -1,7 +1,8 @@
 CC=x86_64-linux-gnu-g++
 LD=x86_64-linux-gnu-g++
 AR=x86_64-linux-gnu-ar
-CFLAGS=-I. -I../inc -I../lib -march=native -Wall -Weffc++ -O2
+# CFLAGS=-I. -I../inc -I../lib -march=native -Wall -Weffc++ -O3
+CFLAGS=-I. -I../inc -I../lib -march=native -Wall -Weffc++ -g -DDEBUG
 
 OPTOBJ=.libs/cmdopt.o
 LIBOPT=.libs/libcmdopt.a

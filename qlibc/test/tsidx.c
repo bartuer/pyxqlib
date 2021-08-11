@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <time.h>
@@ -53,21 +54,20 @@ private:
 
 inline void print_start(double elaspe, uint32_t start, time_t &input,
                         std::vector<uint32_t> &time_series, char *output) {
-
-  return;
-  std::cout << start << ", " << time_t2strw(input) << " -> "
-            << time_t2str(time_series[start], output) << " [" << elaspe
-            << "ns]: " << std::endl;
+  std::cerr << std::left << std::setw(5) << start << " " << time_t2strw(input)
+            << " -> " << time_t2str(time_series[start], output) << " ["
+            << elaspe << "ns]" << std::endl;
 }
 
 inline void print_stop(double elaspe, uint32_t stop, time_t &input,
                        std::vector<uint32_t> &time_series, char *output) {
-  return;
-  std::cout << stop << ", " << time_t2str(time_series[stop], output) << " <- "
-            << time_t2strw(input) << " [" << elaspe << "ns]: " << std::endl;
+  std::cerr << std::left << std::setw(5) << stop << " "
+            << time_t2str(time_series[stop], output) << " <- "
+            << time_t2strw(input) << " [" << elaspe << "ns]" << std::endl;
 }
 
 enum test_t { start_test = 0, stop_test = 1 };
+
 union timestamp_t {
   time_t start;
   time_t stop;
@@ -83,17 +83,19 @@ typedef struct {
 } test_case;
 
 namespace {
-int param_num = 7;
 const char *data_filename = NULL;
 const char *case_filename = NULL;
 void print_help(const char *cmd) {
   std::cerr << "Usage: " << cmd
             << " [OPTION]... \n\n"
                "Options:\n"
-               "  -n, --num            number\n"
                "  -h, --help           print this help\n"
-               "  -d, --data           time series data file name\n"
-               "  -c, --test_case      test case file name\n"
+               "  -d, --data           time series data JSON file\n"
+               "  -c, --test_case      test case JSON file\n"
+               "\n"
+               "Outputs:\n"
+               "  stderr: test log\n"
+               "  stdout: test JSON"
             << std::endl;
 }
 
@@ -112,17 +114,6 @@ int main(int argc, char *argv[]) {
   int label;
   while ((label = ::cmdopt_get(&cmdopt)) != -1) {
     switch (label) {
-    case 'n': {
-      char *end_of_value;
-      const long value = std::strtol(cmdopt.optarg, &end_of_value, 10);
-      if ((*end_of_value != 0) || (value <= 0) || (value > 20)) {
-        std::cerr << "error: option `-n' with an invalid argument: "
-                  << cmdopt.optarg << std::endl;
-        return 1;
-      }
-      param_num = (int)value;
-      break;
-    }
     case 'd': {
       data_filename = cmdopt.optarg;
       break;
@@ -171,6 +162,7 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  // parse test case
   std::vector<test_case> tcs;
   if (tests.is<picojson::array>()) {
     const picojson::array &cs = tests.get<picojson::array>();
@@ -210,28 +202,35 @@ int main(int argc, char *argv[]) {
       tc.duration = 0.0;
       tcs.push_back(tc);
     }
+  } else {
+    std::cerr << "test case JSON should be array " << std::endl;
+    return -2;
   }
 
-  time_t tt = str2time_t("2020-05-31 07:30:00");
   Clock cl;
-  uint32_t start = tsidx->start(tt);
-  double e = cl.elasped();
-  print_start(e, start, tt, ts, tfstr);
+  for (auto i = tcs.begin(); i != tcs.end(); i++) {
+    cl.reset();
+    if (i->type == start_test) {
+      uint32_t start = tsidx->start(i->timestamp.start);
+      i->duration = cl.elasped();
+      i->result = (ts[start] == i->expect);
+#ifdef DEBUG
+      print_start(i->duration, start, i->timestamp.start, ts, tfstr);
+#endif
+    } else {
+      uint32_t stop = tsidx->stop(i->timestamp.stop);
+      i->duration = cl.elasped();
+      i->result = (ts[stop] == i->expect);
+#ifdef DEBUG
+      print_stop(i->duration, stop, i->timestamp.stop, ts, tfstr);
+#endif
+    }
+  }
 
-  cl.reset();
-  uint32_t stop = tsidx->stop(tt);
-  e = cl.elasped();
-  print_stop(e, stop, tt, ts, tfstr);
-
-  tt = str2time_t("2020-06-01 12:30:00");
-  cl.reset();
-  start = tsidx->start(tt);
-  e = cl.elasped();
-  print_start(e, start, tt, ts, tfstr);
-
-  picojson::array &cs = tests.get<picojson::array>();
+  // dump test case
   std::vector<test_case>::const_iterator i;
   picojson::array::iterator j;
+  picojson::array &cs = tests.get<picojson::array>();
   for (i = tcs.begin(), j = cs.begin(); j != cs.end(); ++j, ++i) {
     picojson::value::object &c = j->get<picojson::object>();
     test_case tc = *i;
