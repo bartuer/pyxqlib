@@ -62,7 +62,7 @@ inline void print_start(double elaspe, uint32_t start, time_t &input,
 inline void print_stop(double elaspe, uint32_t stop, time_t &input,
                        std::vector<uint32_t> &time_series, char *output) {
   std::cerr << std::left << std::setw(5) << stop << " "
-            << time_t2str(time_series[stop], output) << " <- "
+            << time_t2str(time_series[stop - 1], output) << " <- "
             << time_t2strw(input) << " [" << elaspe << "ns]" << std::endl;
 }
 
@@ -91,7 +91,7 @@ void print_help(const char *cmd) {
                "Options:\n"
                "  -h, --help           print this help\n"
                "  -d, --data           time series data JSON file\n"
-               "  -c, --test_case      test case JSON file\n"
+               "  -c, --case           test case JSON file\n"
                "\n"
                "Outputs:\n"
                "  stderr: test log\n"
@@ -166,6 +166,7 @@ int main(int argc, char *argv[]) {
   std::vector<test_case> tcs;
   if (tests.is<picojson::array>()) {
     const picojson::array &cs = tests.get<picojson::array>();
+    tcs.reserve(cs.size());
     for (picojson::array::const_iterator j = cs.begin(); j != cs.end(); ++j) {
       const picojson::value::object &c = j->get<picojson::object>();
       test_case tc;
@@ -220,7 +221,7 @@ int main(int argc, char *argv[]) {
     } else {
       uint32_t stop = tsidx->stop(i->timestamp.stop);
       i->duration = cl.elasped();
-      i->result = (ts[stop] == i->expect);
+      i->result = (ts[stop - 1] == i->expect);
 #ifdef DEBUG
       print_stop(i->duration, stop, i->timestamp.stop, ts, tfstr);
 #endif
@@ -233,11 +234,12 @@ int main(int argc, char *argv[]) {
   picojson::array &cs = tests.get<picojson::array>();
   for (i = tcs.begin(), j = cs.begin(); j != cs.end(); ++j, ++i) {
     picojson::value::object &c = j->get<picojson::object>();
-    test_case tc = *i;
-    c["duration"] = picojson::value(tc.duration);
-    c["result"] = picojson::value(tc.result);
+    c["duration"] = picojson::value(i->duration);
+    c["result"] = picojson::value(i->result);
   }
 
   std::string json_str = tests.serialize();
   std::cout << json_str << std::endl;
+
+  delete tsidx;
 }

@@ -1,4 +1,5 @@
 #include "tsidx.h"
+#include <algorithm>
 #include <functional>
 #include <iostream>
 #include <numeric>
@@ -92,8 +93,8 @@ uint32_t TSIdx::start_search_plain(size_t i, uint32_t s) {
 
 uint32_t TSIdx::start(uint32_t start) {
   uint32_t d = start / DAY_SECS;
-  size_t i = d - this->d_beg;
-  assert(i < this->days);
+  int i = std::max(0, static_cast<int>(d) - static_cast<int>(this->d_beg));
+  i = std::min(i, static_cast<int>(this->days) - 1);
   if (start == d * DAY_SECS) {
     return this->d_idx[i];
   } else {
@@ -116,9 +117,9 @@ uint32_t TSIdx::stop_search_plain(size_t i, uint32_t s) {
 
 uint32_t TSIdx::stop(uint32_t stop) {
   uint32_t d = stop / DAY_SECS;
-  size_t i = d - this->d_beg;
-  assert(i == this->d_end - d);
-  assert(i < this->days);
+  int i = std::min(static_cast<int>(d) - static_cast<int>(this->d_beg),
+                   static_cast<int>(this->days) - 1);
+  i = std::max(0, i);
   if (stop == d * DAY_SECS) {
     return this->d_xdi[i];
   } else {
