@@ -7,7 +7,8 @@
 #define DAY_SECS 86400
 namespace qlibc {
 TSIdx::TSIdx()
-    : d_beg(0), d_end(0), days(0), d_idx(NULL), d_xdi(NULL), t_idx(NULL) {}
+    : d_beg(0), d_end(0), days(0), size(0), d_idx(NULL), d_xdi(NULL),
+      t_idx(NULL) {}
 
 TSIdx::~TSIdx() {
   if (d_idx != NULL) {
@@ -26,6 +27,7 @@ int TSIdx::build(uint32_t *ts, size_t len) {
   uint32_t last = ts[len - 1];
   this->d_beg = first / DAY_SECS;
   this->d_end = last / DAY_SECS + 1;
+  this->size = len;
   this->days = this->d_end - this->d_beg;
   this->d_idx = (uint32_t *)malloc(this->days * sizeof(uint32_t));
   assert(this->d_idx);
@@ -44,8 +46,7 @@ int TSIdx::build(uint32_t *ts, size_t len) {
   if (this->t_idx == NULL) {
     return -1;
   }
-  memcpy(this->t_idx, ts, len);
-
+  memcpy(this->t_idx, ts, len * sizeof(uint32_t));
   for (size_t i = 0, di = 0; i < len; i++) {
     uint32_t t = ts[i];
     uint32_t d = t / DAY_SECS - this->d_beg;
@@ -84,7 +85,7 @@ uint32_t TSIdx::start_search_plain(size_t i, uint32_t s) {
   uint32_t n = this->d_idx[i + 1];
   uint32_t j;
   for (j = d; j < n; j++) {
-    if (this->t_idx[j] - s > 0) {
+    if (this->t_idx[j] - s >= 0) {
       return j;
     }
   }
@@ -93,7 +94,13 @@ uint32_t TSIdx::start_search_plain(size_t i, uint32_t s) {
 
 uint32_t TSIdx::start(uint32_t start) {
   uint32_t d = start / DAY_SECS;
+  if (d < this->d_beg) {
+    return 0;
+  }
   int i = std::max(0, static_cast<int>(d) - static_cast<int>(this->d_beg));
+  if (i >= static_cast<int>(this->days)) {
+    return this->size;
+  }
   i = std::min(i, static_cast<int>(this->days) - 1);
   if (start == d * DAY_SECS) {
     return this->d_idx[i];
@@ -108,8 +115,8 @@ uint32_t TSIdx::stop_search_plain(size_t i, uint32_t s) {
   uint32_t n = this->d_xdi[i - 1];
   uint32_t j;
   for (j = d; j >= n; j--) {
-    if (this->t_idx[j] - s < 0) {
-      return j;
+    if (this->t_idx[j] - s <= 0) {
+      return j + 1;
     }
   }
   return j;
@@ -117,8 +124,15 @@ uint32_t TSIdx::stop_search_plain(size_t i, uint32_t s) {
 
 uint32_t TSIdx::stop(uint32_t stop) {
   uint32_t d = stop / DAY_SECS;
+  if (d > this->d_end) {
+    return this->size;
+  }
   int i = std::min(static_cast<int>(d) - static_cast<int>(this->d_beg),
                    static_cast<int>(this->days) - 1);
+
+  if (i < 0) {
+    return 0;
+  }
   i = std::max(0, i);
   if (stop == d * DAY_SECS) {
     return this->d_xdi[i];

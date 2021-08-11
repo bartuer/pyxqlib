@@ -1,11 +1,31 @@
 [{
     "type": "start",
-    "name": "out of range",
+    "name": "out of range before start",
     "start": "2020-01-01 00:00:00",
     "expect": 1577957400
 }, {
     "type": "stop",
-    "name": "out of range",
+    "name": "out of range after stop",
     "stop": "2020-07-01 00:00:00",
+    "expect": 1593529140
+}, {
+    "type": "start",
+    "name": "out of range after stop",
+    "start": "2020-07-01 00:00:00",
+    "expect": 1593529140
+}, {
+    "type": "stop",
+    "name": "out of range before start",
+    "stop": "2020-01-01 00:00:00",
+    "expect": 1577957400
+}, {
+    "type": "start",
+    "name": "exact start",
+    "stop": "2020-01-02 09:30:00",
+    "expect": 1577957400
+}, {
+    "type": "stop",
+    "name": "exact stop",
+    "stop": "2020-06-30 14:59:00",
     "expect": 1593529140
 }]

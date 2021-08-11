@@ -5,6 +5,7 @@
 #endif // _WIN32
 #include "cmdopt.h"
 #include "picojson.h"
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <ctime>
@@ -54,15 +55,17 @@ private:
 
 inline void print_start(double elaspe, uint32_t start, time_t &input,
                         std::vector<uint32_t> &time_series, char *output) {
+  uint32_t idx = std::min(start, static_cast<uint32_t>(time_series.size() - 1));
   std::cerr << std::left << std::setw(5) << start << " " << time_t2strw(input)
-            << " -> " << time_t2str(time_series[start], output) << " ["
-            << elaspe << "ns]" << std::endl;
+            << " -> " << time_t2str(time_series[idx], output) << " [" << elaspe
+            << "ns]" << std::endl;
 }
 
 inline void print_stop(double elaspe, uint32_t stop, time_t &input,
                        std::vector<uint32_t> &time_series, char *output) {
+  uint32_t idx = std::max(static_cast<uint32_t>(1), stop);
   std::cerr << std::left << std::setw(5) << stop << " "
-            << time_t2str(time_series[stop - 1], output) << " <- "
+            << time_t2str(time_series[idx - 1], output) << " <- "
             << time_t2strw(input) << " [" << elaspe << "ns]" << std::endl;
 }
 
@@ -214,14 +217,23 @@ int main(int argc, char *argv[]) {
     if (i->type == start_test) {
       uint32_t start = tsidx->start(i->timestamp.start);
       i->duration = cl.elasped();
-      i->result = (ts[start] == i->expect);
+      if (start == ts.size()) {
+        i->result = (ts[start - 1] == i->expect);
+      } else {
+        i->result = (ts[start] == i->expect);
+      }
 #ifdef DEBUG
       print_start(i->duration, start, i->timestamp.start, ts, tfstr);
 #endif
     } else {
       uint32_t stop = tsidx->stop(i->timestamp.stop);
+
       i->duration = cl.elasped();
-      i->result = (ts[stop - 1] == i->expect);
+      if (stop == 0) {
+        i->result = (ts[0] == i->expect);
+      } else {
+        i->result = (ts[stop - 1] == i->expect);
+      }
 #ifdef DEBUG
       print_stop(i->duration, stop, i->timestamp.stop, ts, tfstr);
 #endif

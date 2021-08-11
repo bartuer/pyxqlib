@@ -31,6 +31,7 @@ private:
   size_t d_beg;
   size_t d_end;
   size_t days;
+  size_t size;
   uint32_t *d_idx;
   uint32_t *d_xdi;
   uint32_t *t_idx;
