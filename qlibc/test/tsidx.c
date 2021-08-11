@@ -57,8 +57,8 @@ inline void print_start(double elaspe, uint32_t start, time_t &input,
                         std::vector<uint32_t> &time_series, char *output) {
   uint32_t idx = std::min(start, static_cast<uint32_t>(time_series.size() - 1));
   std::cerr << std::left << std::setw(5) << start << " " << time_t2strw(input)
-            << " -> " << time_t2str(time_series[idx], output) << " [" << elaspe
-            << "ns]" << std::endl;
+            << " -> " << time_t2str(time_series[idx], output) << " ["
+            << std::right << std::setw(3) << elaspe << "ns]" << std::endl;
 }
 
 inline void print_stop(double elaspe, uint32_t stop, time_t &input,
@@ -66,7 +66,8 @@ inline void print_stop(double elaspe, uint32_t stop, time_t &input,
   uint32_t idx = std::max(static_cast<uint32_t>(1), stop);
   std::cerr << std::left << std::setw(5) << stop << " "
             << time_t2str(time_series[idx - 1], output) << " <- "
-            << time_t2strw(input) << " [" << elaspe << "ns]" << std::endl;
+            << time_t2strw(input) << " [" << std::right << std::setw(3)
+            << elaspe << "ns]" << std::endl;
 }
 
 enum test_t { start_test = 0, stop_test = 1 };
