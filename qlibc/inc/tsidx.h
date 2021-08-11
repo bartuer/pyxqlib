@@ -21,20 +21,20 @@ public:
   std::pair<uint32_t, uint32_t> index(uint32_t start, uint32_t stop);
   uint32_t stop(uint32_t stop);
   uint32_t start(uint32_t start);
-  inline uint32_t start_search_plain(size_t i, uint32_t s);
-  inline uint32_t stop_search_plain(size_t i, uint32_t s);
+  inline uint32_t start_search_plain(size_t i, int s);
+  inline uint32_t stop_search_plain(size_t i, int s);
   /* inline uint32_t start_search_bin(size_t i, uint32_t s); */
   /* inline uint32_t stop_search_bin(size_t i, uint32_t s); */
   /* inline uint32_t start_search_sse(size_t i, uint32_t s); */
   /* inline uint32_t stop_search_sse(size_t i, uint32_t s); */
 private:
-  size_t d_beg;
-  size_t d_end;
-  size_t days;
-  size_t size;
+  int d_beg;
+  int d_end;
+  int days;
+  int size;
   uint32_t *d_idx;
   uint32_t *d_xdi;
-  uint32_t *t_idx;
+  int *t_idx;
 
   // Disallows copy and assignment.
   TSIdx(const TSIdx &);

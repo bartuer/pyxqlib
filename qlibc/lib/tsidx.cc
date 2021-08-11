@@ -41,15 +41,15 @@ int TSIdx::build(uint32_t *ts, size_t len) {
     return -1;
   }
   memset(this->d_xdi, 0, this->days * sizeof(uint32_t));
-  this->t_idx = (uint32_t *)malloc(len * sizeof(uint32_t));
+  this->t_idx = (int *)malloc(len * sizeof(int));
   assert(this->t_idx);
   if (this->t_idx == NULL) {
     return -1;
   }
-  memcpy(this->t_idx, ts, len * sizeof(uint32_t));
-  for (size_t i = 0, di = 0; i < len; i++) {
+  memcpy(this->t_idx, ts, len * sizeof(int));
+  for (int i = 0, di = 0; i < this->size; i++) {
     uint32_t t = ts[i];
-    uint32_t d = t / DAY_SECS - this->d_beg;
+    int d = t / DAY_SECS - this->d_beg;
     while (d >= di) {
       assert(di < this->days);
       if (di >= this->days) {
@@ -60,10 +60,10 @@ int TSIdx::build(uint32_t *ts, size_t len) {
     }
   }
 
-  size_t di = this->days - 1;
-  for (size_t i = len - 1; i >= 0; i--) {
+  int di = this->days - 1;
+  for (int i = len - 1; i >= 0; i--) {
     uint32_t t = ts[i];
-    uint32_t d = t / DAY_SECS - this->d_beg;
+    int d = t / DAY_SECS - this->d_beg;
     while (di >= d) {
       if (di < 0) {
         return -2;
@@ -79,7 +79,7 @@ int TSIdx::build(uint32_t *ts, size_t len) {
   return 0;
 }
 
-uint32_t TSIdx::start_search_plain(size_t i, uint32_t s) {
+uint32_t TSIdx::start_search_plain(size_t i, int s) {
   assert(i + 1 < this->days);
   uint32_t d = this->d_idx[i];
   uint32_t n = this->d_idx[i + 1];
@@ -93,28 +93,28 @@ uint32_t TSIdx::start_search_plain(size_t i, uint32_t s) {
 }
 
 uint32_t TSIdx::start(uint32_t start) {
-  uint32_t d = start / DAY_SECS;
+  int d = start / DAY_SECS;
   if (d < this->d_beg) {
     return 0;
   }
-  int i = std::max(0, static_cast<int>(d) - static_cast<int>(this->d_beg));
-  if (i >= static_cast<int>(this->days)) {
+  int i = std::max(0, d - this->d_beg);
+  if (i >= this->days) {
     return this->size;
   }
-  i = std::min(i, static_cast<int>(this->days) - 1);
-  if (start == d * DAY_SECS) {
+  i = std::min(i, this->days - 1);
+  if (start - d * DAY_SECS == 0) {
     return this->d_idx[i];
   } else {
     return this->start_search_plain(i, start);
   }
 }
 
-uint32_t TSIdx::stop_search_plain(size_t i, uint32_t s) {
+uint32_t TSIdx::stop_search_plain(size_t i, int s) {
   assert(i - 1 >= 0);
   uint32_t d = this->d_xdi[i];
   uint32_t n = this->d_xdi[i - 1];
   uint32_t j;
-  for (j = d; j >= n; j--) {
+  for (j = d - 1; j >= n; j--) {
     if (this->t_idx[j] - s <= 0) {
       return j + 1;
     }
@@ -123,18 +123,17 @@ uint32_t TSIdx::stop_search_plain(size_t i, uint32_t s) {
 }
 
 uint32_t TSIdx::stop(uint32_t stop) {
-  uint32_t d = stop / DAY_SECS;
+  int d = stop / DAY_SECS;
   if (d > this->d_end) {
     return this->size;
   }
-  int i = std::min(static_cast<int>(d) - static_cast<int>(this->d_beg),
-                   static_cast<int>(this->days) - 1);
+  int i = std::min(d - this->d_beg, this->days - 1);
 
   if (i < 0) {
     return 0;
   }
   i = std::max(0, i);
-  if (stop == d * DAY_SECS) {
+  if (stop - d * DAY_SECS == 0) {
     return this->d_xdi[i];
   } else {
     return this->stop_search_plain(i, stop);

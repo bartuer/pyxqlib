@@ -79,7 +79,6 @@ class MustelasQuote(BaseQuote):
             self.i[j] = t2i(d.index.view())
             self.d[s] = np.array([d2n(d,f) for f in self.c.keys()])
             j += 1
-            break
         
     def get_all_stock(self):
         return self.s.keys()
