@@ -38,4 +38,44 @@
     "name": "hit -2",
     "start": "2020-06-30 14:58:59",
     "expect": 1593529080
+}, {
+    "type": "start",
+    "name": "hit 1",
+    "start": "2020-01-02 09:30:59",
+    "expect": 1577957460
+}, {
+    "type": "stop",
+    "name": "hit -2",
+    "start": "2020-06-30 14:58:01",
+    "expect": 1593529080
+}, {
+    "type": "start",
+    "name": "exact 1",
+    "start": "2020-01-02 09:31:00",
+    "expect": 1577957460
+}, {
+    "type": "stop",
+    "name": "exact -2",
+    "start": "2020-06-30 14:58:00",
+    "expect": 1593529080
+}, {
+    "type": "start",
+    "name": "should be one hundred",
+    "start": "2020-01-02 11:08:25",
+    "expect": 1577963340
+}, {
+    "type": "stop",
+    "name": "should be one hundred",
+    "start": "2020-06-30 13:20:10",
+    "expect": 1593523200
+}, {
+    "type": "start",
+    "name": "day start",
+    "start": "2020-01-02 15:08:25",
+    "expect": 1578043800
+}, {
+    "type": "stop",
+    "name": "day end",
+    "start": "2020-01-02 15:08:25",
+    "expect": 1577977140
 }]
