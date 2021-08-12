@@ -80,7 +80,6 @@ int TSIdx::build(uint32_t *ts, size_t len) {
 }
 
 uint32_t TSIdx::start_search_plain(size_t i, int s) {
-  assert(i + 1 < this->days);
   uint32_t d = this->d_idx[i];
   uint32_t n = this->d_idx[i + 1];
   uint32_t j;
@@ -110,7 +109,6 @@ uint32_t TSIdx::start(uint32_t start) {
 }
 
 uint32_t TSIdx::stop_search_plain(size_t i, int s) {
-  assert(i - 1 >= 0);
   uint32_t d = this->d_xdi[i];
   uint32_t n = this->d_xdi[i - 1];
   uint32_t j;
@@ -127,19 +125,13 @@ uint32_t TSIdx::stop_search_plain(size_t i, int s) {
 
 uint32_t TSIdx::stop(uint32_t stop) {
   int d = stop / DAY_SECS;
-
   if (d > this->d_end) {
     return this->size;
   }
-
   int i = std::min(d - this->d_beg, this->days - 1);
-
   if (i < 0) {
     return 0;
   }
-
-  i = std::max(0, i);
-
   if (stop - d * DAY_SECS == 0) {
     return this->d_xdi[i];
   } else {

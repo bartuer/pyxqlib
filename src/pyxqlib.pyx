@@ -47,12 +47,9 @@ cdef class _Tsidx:
 
     def __getitem__(self, x):
         if x.start is None:
-            stop = min(self.stop, x.stop)
-            return self._idx.stop(stop)
+            return self._idx.stop(x.stop)
         else:
-            start = max(self.start,  x.start)
-            stop = min(self.stop, x.stop)
-            start_, stop_ = self._idx.index(start, stop)
+            start_, stop_ = self._idx.index(x.start, x.stop)
             return slice(start_, stop_)
         
     def load(self, uint32_t[::1] ts):
