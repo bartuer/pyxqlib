@@ -80,12 +80,62 @@
     "expect": 1577977140
 }, {
     "type": "start",
-    "name": "week start",
+    "name": "week start sat",
     "start": "2020-01-04 11:57:23",
     "expect": 1578303000
 }, {
     "type": "stop",
-    "name": "week stop",
+    "name": "week stop sat",
     "start": "2020-01-04 11:57:23",
     "expect": 1578063540
+}, {
+    "type": "start",
+    "name": "week start sun",
+    "start": "2020-01-05 16:57:23",
+    "expect": 1578303000
+}, {
+    "type": "stop",
+    "name": "week stop sun",
+    "start": "2020-01-05 16:57:23",
+    "expect": 1578063540
+}, {
+    "type": "start",
+    "name": "holiday start",
+    "start": "2020-05-02 16:57:23",
+    "expect": 1588757400
+}, {
+    "type": "stop",
+    "name": "holiday stop",
+    "start": "2020-05-02 16:57:23",
+    "expect": 1588258740
+}, {
+    "type": "start",
+    "name": "one hour",
+    "start": "2020-05-06 10:00:00",
+    "expect": 1588759200
+}, {
+    "type": "stop",
+    "name": "one hour",
+    "start": "2020-05-06 10:59:00",
+    "expect": 1588762740
+}, {
+    "type": "start",
+    "name": "half an hour",
+    "start": "2020-05-06 09:30:00",
+    "expect": 1588757400
+}, {
+    "type": "stop",
+    "name": "half an hour",
+    "start": "2020-05-06 09:59:00",
+    "expect": 1588759140
+}, {
+    "type": "start",
+    "name": "3 days",
+    "start": "2020-05-11 09:30:00",
+    "expect": 1589189400
+}, {
+    "type": "stop",
+    "name": "3 days",
+    "start": "2020-05-13 14:59:00",
+    "expect": 1589381940
 }]
