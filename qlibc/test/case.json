@@ -78,4 +78,14 @@
     "name": "day end",
     "start": "2020-01-02 15:08:25",
     "expect": 1577977140
+}, {
+    "type": "start",
+    "name": "week start",
+    "start": "2020-01-04 11:57:23",
+    "expect": 1578303000
+}, {
+    "type": "stop",
+    "name": "week stop",
+    "start": "2020-01-04 11:57:23",
+    "expect": 1578063540
 }]

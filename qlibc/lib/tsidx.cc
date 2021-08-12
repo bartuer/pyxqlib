@@ -114,6 +114,9 @@ uint32_t TSIdx::stop_search_plain(size_t i, int s) {
   uint32_t d = this->d_xdi[i];
   uint32_t n = this->d_xdi[i - 1];
   uint32_t j;
+  if (d == n) {
+    return d;
+  }
   for (j = d - 1; j >= n; j--) {
     if (this->t_idx[j] - s <= 0) {
       return j + 1;
@@ -124,15 +127,19 @@ uint32_t TSIdx::stop_search_plain(size_t i, int s) {
 
 uint32_t TSIdx::stop(uint32_t stop) {
   int d = stop / DAY_SECS;
+
   if (d > this->d_end) {
     return this->size;
   }
+
   int i = std::min(d - this->d_beg, this->days - 1);
 
   if (i < 0) {
     return 0;
   }
+
   i = std::max(0, i);
+
   if (stop - d * DAY_SECS == 0) {
     return this->d_xdi[i];
   } else {
