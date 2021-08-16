@@ -1,0 +1,1 @@
+./tsidx -d ts.json -c - 2>/dev/null|jq '(.[] | select(.result == false)),length'

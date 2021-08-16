@@ -1,0 +1,1 @@
+./tsidx -d ts.json -c case.json 2>/dev/null|jq .[].result |grep false
