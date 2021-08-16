@@ -22,10 +22,10 @@ public:
   uint32_t start(uint32_t start);
   inline uint32_t start_search_plain(size_t i, int s);
   inline uint32_t stop_search_plain(size_t i, int s);
-  inline uint32_t start_search_bin(size_t i, int s){return 0};
-  inline uint32_t stop_search_bin(size_t i, int s){return 0};
-  inline uint32_t start_search_sse(size_t i, int s){return 0};
-  inline uint32_t stop_search_sse(size_t i, int s){return 0};
+  inline uint32_t start_search_bin(size_t i, int s) { return 0; }
+  inline uint32_t stop_search_bin(size_t i, int s) { return 0; }
+  inline uint32_t start_search_sse(size_t i, int s) { return 0; }
+  inline uint32_t stop_search_sse(size_t i, int s) { return 0; }
 
 private:
   int d_beg;

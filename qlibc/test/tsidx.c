@@ -124,6 +124,9 @@ int main(int argc, char *argv[]) {
     }
     case 'c': {
       case_filename = cmdopt.optarg;
+      if (strcmp(case_filename, "-") == 0) {
+        case_filename = "/dev/stdin";
+      }
       break;
     }
     case 'h': {
