@@ -62,7 +62,7 @@ def d2n(df, f):
     return df[[f]].to_numpy(dtype=df[[f]].dtypes[0]).T[0]
 
 def n2d(n):
-    return pd.DafaFrame.from_records(n.reshape(-1,1))
+    return pd.DataFrame.from_records(n.reshape(-1,1))
 
 def d2j(a, name):
     json.dump(a.tolist(), codecs.open(name, 'w', encoding='utf-8'),
@@ -74,32 +74,33 @@ class MustelasQuote(BaseQuote):
     def __init__(self, df_file: str):
         quote_df = pd.read_pickle(df_file)
         super().__init__(quote_df=quote_df)
-        self.d = {}             # cache
-        self.s = {}             # name
         self.i = Tsidx()        # index
-        self.l = {}
+        self.d = {}             # cache
+        self.n = {}             # name
+        self.b = {}             # buy limit
+        self.s = {}             # sell limit
         j = 0
         for s, v in quote_df.groupby(level="instrument"):
-            self.s[s] = j
+            self.n[s] = j
             d = v.droplevel(level="instrument")
             if not hasattr(self, 'c'):
                 self.c = dict((c,i) for i, c in enumerate(d.columns))
             self.i[j] = t2i(d.index.view())
             self.d[s] = np.array([d2n(d,f) for f in self.c.keys()])
-            self.l['b'] = np.asarray(np.where(self.d[s][self.c['limit_buy']]==True)[0], dtype=np.int32)
-            self.l['s'] = np.asarray(np.where(self.d[s][self.c['limit_sell']]==True)[0],dtype=np.int32)
+            self.b[s] = np.asarray(np.where(self.d[s][self.c['limit_buy']]==True)[0], dtype=np.int32)
+            self.s[s] = np.asarray(np.where(self.d[s][self.c['limit_sell']]==True)[0],dtype=np.int32)
             j += 1
         
     def get_all_stock(self):
-        return self.s.keys()
+        return self.n.keys()
 
     def idx(self, i, b, e, f):
         j, k = t2i([b,e])
-        return self.d[i][self.c[f]][self.i[self.s[i]][j:k]]
+        return self.d[i][self.c[f]][self.i[self.n[i]][j:k]]
             
     def end(self, i, e, f):
         k = t2i([e])[0]
-        return self.d[i][self.c[f]][self.i[self.s[i]][:k]]
+        return self.d[i][self.c[f]][self.i[self.n[i]][:k]]
 
     def get_data(self, stock_id, start_time, end_time, field, method):
         if (method == 'last'):  # number
@@ -110,13 +111,13 @@ class MustelasQuote(BaseQuote):
             return np.mean(self.idx(stock_id, start_time, end_time, field))
         elif (method == 'all'): # bool
              if field == 'limit_sell':
-                 return len(self.l['s']) == 0
+                 return self.s[stock_id].size == 0
              if field == 'limit_buy':
-                 return len(self.l['b']) == 0
-             return len(self.l['s']) == 0 or len(self.l['b']) == 0
+                 return self.b[stock_id].size == 0
+             return self.s[stock_id].size == 0 or self.b[stock_id].size == 0
         elif (method == "None"): # series
             return n2d(self.idx(stock_id, start_time, end_time, field))
-        elif (method == 'any'): # 
+        elif (method == 'any'): # exception
             raise NotImplementedError("not implement")
         else:
             return n2d(self.idx(stock_id, start_time, end_time, field))
@@ -124,6 +125,13 @@ class MustelasQuote(BaseQuote):
 
 
 q = MustelasQuote("data/quote_df.pkl")
-print(q.get_data('SH600004','2020-05-30','2020-06-12','$volume','all'))
-print(q.get_data('SH600004','2020-05-30','2020-06-12','$volume','sum'))
-print(q.get_data('SH600004','2020-05-30','2020-06-12','$volume','mean'))
+print(f"\
+all:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','all')}\n\
+all:{q.get_data('SH600004','2020-05-30','2020-06-12','limit_buy','all')}\n\
+sum:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','sum')}\n\
+mean:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','mean')}\n\
+last:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','last')}\n\
+{q.get_data('SH600004','2020-06-11','2020-06-12','$volume','None')}\n\
+{q.get_data('SH600004','2020-06-11','2020-06-12','$close','None')}\n\
+")
+
