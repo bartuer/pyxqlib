@@ -81,7 +81,12 @@ int TSIdx::build(uint32_t *ts, size_t len) {
 
 uint32_t TSIdx::start_search_plain(size_t i, int s) {
   uint32_t d = this->d_idx[i];
-  uint32_t n = this->d_idx[i + 1];
+  uint32_t n;
+  if (this->days == 1) {
+    n = static_cast<uint32_t>(size);
+  } else {
+    n = this->d_idx[i + 1];
+  }
   uint32_t j;
   for (j = d; j < n; j++) {
     if (this->t_idx[j] - s >= 0) {
@@ -110,7 +115,12 @@ uint32_t TSIdx::start(uint32_t start) {
 
 uint32_t TSIdx::stop_search_plain(size_t i, int s) {
   uint32_t d = this->d_xdi[i];
-  uint32_t n = this->d_xdi[i - 1];
+  uint32_t n;
+  if (i == 0) {
+    n = 0;
+  } else {
+    n = this->d_xdi[i - 1];
+  }
   uint32_t j;
   if (d == n) {
     return d;

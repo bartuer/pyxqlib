@@ -96,8 +96,13 @@ class MustelasQuote(BaseQuote):
 
     def idx(self, i, b, e, f):
         j, k = t2i([b,e])
+        print(f"j,k:{j},{k},idx:{self.i[self.n[i]][j:k]}")
         return self.d[i][self.c[f]][self.i[self.n[i]][j:k]]
             
+    def beg(self, i, b, f):
+        j = t2i([b])[0]
+        return self.d[i][self.c[f]][self.i[self.n[i]][j:]]
+
     def end(self, i, e, f):
         k = t2i([e])[0]
         return self.d[i][self.c[f]][self.i[self.n[i]][:k]]
@@ -133,5 +138,6 @@ mean:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','mean')}\n\
 last:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','last')}\n\
 {q.get_data('SH600004','2020-06-11','2020-06-12','$volume','None')}\n\
 {q.get_data('SH600004','2020-06-11','2020-06-12','$close','None')}\n\
+{q.get_data('SH600000','2020-01-02 09:31:00', '2020-01-02 09:31:59', '$close', 'None')}\n\
 ")
 

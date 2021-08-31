@@ -48,6 +48,8 @@ cdef class _Tsidx:
     def __getitem__(self, x):
         if x.start is None:
             return self._idx.stop(x.stop)
+        elif x.stop is None:
+            return self._idx.start(x.start)
         else:
             start_, stop_ = self._idx.index(x.start, x.stop)
             return slice(start_, stop_)

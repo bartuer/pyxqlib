@@ -1,0 +1,1 @@
+./tsidx -d ts.1d.json -c case.1d.json  2>/dev/null|jq '(.[] | select(.result == false)),length'
