@@ -82,8 +82,8 @@ int TSIdx::build(uint32_t *ts, size_t len) {
 uint32_t TSIdx::start_search_plain(size_t i, int s) {
   uint32_t d = this->d_idx[i];
   uint32_t n;
-  if (this->days == 1) {
-    n = static_cast<uint32_t>(size);
+  if (this->days - i == 1) {
+    n = static_cast<uint32_t>(this->size);
   } else {
     n = this->d_idx[i + 1];
   }
