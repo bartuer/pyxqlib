@@ -21,7 +21,7 @@
 }, {
     "type": "start",
     "name": "exact start",
-    "stop": "2020-01-02 09:30:00",
+    "start": "2020-01-02 09:30:00",
     "expect": 1577957400
 }, {
     "type": "stop",
@@ -31,7 +31,7 @@
 }, {
     "type": "start",
     "name": "exact start second",
-    "stop": "2020-01-02 09:31:00",
+    "start": "2020-01-02 09:31:00",
     "expect": 1577957460
 }, {
     "type": "stop",
@@ -46,7 +46,7 @@
 }, {
     "type": "stop",
     "name": "hit -2",
-    "start": "2020-06-30 14:58:59",
+    "stop": "2020-06-30 14:58:59",
     "expect": 1593529080
 }, {
     "type": "start",
@@ -56,7 +56,7 @@
 }, {
     "type": "stop",
     "name": "hit -2",
-    "start": "2020-06-30 14:58:01",
+    "stop": "2020-06-30 14:58:01",
     "expect": 1593529080
 }, {
     "type": "start",
@@ -66,7 +66,7 @@
 }, {
     "type": "stop",
     "name": "exact -2",
-    "start": "2020-06-30 14:58:00",
+    "stop": "2020-06-30 14:58:00",
     "expect": 1593529080
 }, {
     "type": "start",
@@ -76,7 +76,7 @@
 }, {
     "type": "stop",
     "name": "should be one hundred",
-    "start": "2020-06-30 13:20:10",
+    "stop": "2020-06-30 13:20:10",
     "expect": 1593523200
 }, {
     "type": "start",
@@ -86,7 +86,7 @@
 }, {
     "type": "stop",
     "name": "day end",
-    "start": "2020-01-02 15:08:25",
+    "stop": "2020-01-02 15:08:25",
     "expect": 1577977140
 }, {
     "type": "start",
@@ -96,7 +96,7 @@
 }, {
     "type": "stop",
     "name": "week stop sat",
-    "start": "2020-01-04 11:57:23",
+    "stop": "2020-01-04 11:57:23",
     "expect": 1578063540
 }, {
     "type": "start",
@@ -106,7 +106,7 @@
 }, {
     "type": "stop",
     "name": "week stop sun",
-    "start": "2020-01-05 16:57:23",
+    "stop": "2020-01-05 16:57:23",
     "expect": 1578063540
 }, {
     "type": "start",
@@ -116,7 +116,7 @@
 }, {
     "type": "stop",
     "name": "holiday stop",
-    "start": "2020-05-02 16:57:23",
+    "stop": "2020-05-02 16:57:23",
     "expect": 1588258740
 }, {
     "type": "start",
@@ -126,7 +126,7 @@
 }, {
     "type": "stop",
     "name": "one hour",
-    "start": "2020-05-06 10:59:00",
+    "stop": "2020-05-06 10:59:00",
     "expect": 1588762740
 }, {
     "type": "start",
@@ -136,7 +136,7 @@
 }, {
     "type": "stop",
     "name": "half an hour",
-    "start": "2020-05-06 09:59:00",
+    "stop": "2020-05-06 09:59:00",
     "expect": 1588759140
 }, {
     "type": "start",
@@ -146,11 +146,21 @@
 }, {
     "type": "stop",
     "name": "3 days",
-    "start": "2020-05-13 14:59:00",
+    "stop": "2020-05-13 14:59:00",
     "expect": 1589381940
 }, {
     "type": "start",
     "name": "last day second",
     "start": "2020-06-30 09:31:00",
     "expect": 1593509460
+}, {
+    "type": "stop",
+    "name": "cross day",
+    "stop": "2020-01-03 09:29:59",
+    "expect": 1577977140
+}, {
+    "type": "start",
+    "name": "cross day",
+    "start": "2020-01-02 15:00:00",
+    "expect": 1578043800
 }]

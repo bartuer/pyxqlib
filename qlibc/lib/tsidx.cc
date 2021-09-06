@@ -130,7 +130,7 @@ uint32_t TSIdx::stop_search_plain(size_t i, int s) {
       return j + 1;
     }
   }
-  return j;
+  return j + 1;
 }
 
 uint32_t TSIdx::stop(uint32_t stop) {
