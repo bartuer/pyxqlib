@@ -47,7 +47,7 @@ cdef class _Tsidx:
 
     def __getitem__(self, x):
         if x.start is None:
-            return self._idx.stop(x.stop)
+            return self._idx.stop(x.stop) - 1
         elif x.stop is None:
             return self._idx.start(x.start)
         else:
