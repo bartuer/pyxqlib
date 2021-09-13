@@ -92,7 +92,8 @@ class MustelasQuote(BaseQuote):
             self.b[s] = np.asarray(np.where(self.d[s][self.c['limit_buy']]==True)[0], dtype=np.int32)
             self.s[s] = np.asarray(np.where(self.d[s][self.c['limit_sell']]==True)[0],dtype=np.int32)
             j += 1
-        
+
+    
     def get_all_stock(self):
         return self.n.keys()
 
@@ -140,6 +141,15 @@ class MustelasQuote(BaseQuote):
             raise ValueError("fields and method should be str, and method should be one of: last, sum, mean, all, None")
         return 
 
+    def days(self, stock_id):
+        return self.i[self.n[stock_id]].days
+
+    def drange(self, stock_id):
+        return self.i[self.n[stock_id]].drange
+
+    def dlen(self, stock_id):
+        return self.i[self.n[stock_id]].dlen
+    
 q = MustelasQuote("data/quote_df.pkl")
 print(f"\
 sum:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','sum')}\n\
@@ -148,5 +158,8 @@ last:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','last')}\n\
 {q.get_data('SH600004','2020-06-11','2020-06-12','$volume')}\n\
 {q.get_data('SH600004','2020-06-11','2020-06-12','$close')}\n\
 {q.get_data('SH600000','2020-01-02 09:31:00', '2020-01-02 09:31:59', '$close')}\n\
+{q.days('SH600000')}\n\
+{q.dlen('SH600000')}\n\
+{q.drange('SH600000')}\n\
 ")
 

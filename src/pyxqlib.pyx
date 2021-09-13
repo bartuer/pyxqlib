@@ -4,6 +4,8 @@ from libc.stdint cimport uint32_t
 from libc.stdint cimport int32_t
 import zlib
 import sys
+import numpy as np
+from libcpp.vector cimport vector
 
 cimport tsidx
 
@@ -17,7 +19,9 @@ cdef class _Tsidx:
     cdef uint32_t _end
     cdef uint32_t _size
     cdef list _check_sums_
-    
+    cdef vector[uint32_t] days_buffer
+    cdef vector[uint32_t] range_buffer
+
     property id:
         def __get__(self):
             return self._id
@@ -31,6 +35,22 @@ cdef class _Tsidx:
     property stop:
         def __get__(self):
             return self._end
+
+    property days:
+        def __get__(self):
+            self.days_buffer.resize(self._idx.dlen())
+            self.days_buffer = self._idx.didx()
+            return np.asarray(<uint32_t[:self.days_buffer.size()]>self.days_buffer.data(), dtype=np.uint32)
+
+    property drange:
+        def __get__(self):
+            self.range_buffer.resize(self._idx.dlen())
+            self.range_buffer = self._idx.drange()
+            return np.asarray(<uint32_t[:self.range_buffer.size()]>self.range_buffer.data(), dtype=np.uint32)
+
+    property dlen:
+        def __get__(self):
+            return self._idx.dlen()
 
     def __len__(self):
         return self._size

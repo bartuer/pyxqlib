@@ -20,6 +20,9 @@ public:
   std::pair<uint32_t, uint32_t> index(uint32_t start, uint32_t stop);
   uint32_t stop(uint32_t stop);
   uint32_t start(uint32_t start);
+  int dlen() { return this->d_index.size(); };
+  std::vector<uint32_t> didx() { return this->d_index; }
+  std::vector<uint32_t> drange() { return this->d_range; }
   inline uint32_t start_search_plain(size_t i, int s);
   inline uint32_t stop_search_plain(size_t i, int s);
   inline uint32_t start_search_bin(size_t i, int s) { return 0; }
@@ -34,6 +37,8 @@ private:
   int size;
   uint32_t *d_idx;
   uint32_t *d_xdi;
+  std::vector<uint32_t> d_index;
+  std::vector<uint32_t> d_range;
   int *t_idx;
 
   // Disallows copy and assignment.

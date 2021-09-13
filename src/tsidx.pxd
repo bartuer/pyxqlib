@@ -11,3 +11,7 @@ cdef extern from "<tsidx.h>" namespace "qlibc" nogil:
         pair[uint32_t, uint32_t] index(uint32_t start, uint32_t stop) except +
         uint32_t stop(uint32_t stop) except +
         uint32_t start(uint32_t start) except +
+        int dlen() except+
+        vector[uint32_t] didx() except+
+        vector[uint32_t] drange() except+
+        

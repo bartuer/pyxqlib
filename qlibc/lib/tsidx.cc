@@ -50,6 +50,10 @@ int TSIdx::build(uint32_t *ts, size_t len) {
   for (int i = 0, di = 0; i < this->size; i++) {
     uint32_t t = ts[i];
     int d = t / DAY_SECS - this->d_beg;
+    uint32_t dt = (this->d_beg + d) * DAY_SECS;
+    if (d_index.size() == 0 || dt != d_index.back()) {
+      this->d_index.push_back(dt);
+    }
     while (d >= di) {
       assert(di < this->days);
       if (di >= this->days) {
@@ -58,6 +62,10 @@ int TSIdx::build(uint32_t *ts, size_t len) {
       this->d_idx[di] = i;
       di++;
     }
+  }
+
+  for (size_t i = 0; i < this->d_index.size(); i++) {
+    this->d_range.push_back(this->start(this->d_index[i]));
   }
 
   int di = this->days - 1;
