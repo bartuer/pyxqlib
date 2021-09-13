@@ -7,6 +7,7 @@ import pandas as pd
 import numpy as np
 import json,codecs
 from pyxqlib import Tsidx
+from pandas.testing import assert_index_equal
 
 class BaseQuote:
 
@@ -88,6 +89,7 @@ class MustelasQuote(BaseQuote):
             if not hasattr(self, 'c'):
                 self.c = dict((c,i) for i, c in enumerate(d.columns))
             self.i[j] = t2i(d.index.view())
+            self.ti = d.index.values
             self.d[s] = np.array([d2n(d,f) for f in self.c.keys()])
             self.b[s] = np.asarray(np.where(self.d[s][self.c['limit_buy']]==True)[0], dtype=np.int32)
             self.s[s] = np.asarray(np.where(self.d[s][self.c['limit_sell']]==True)[0],dtype=np.int32)
@@ -142,7 +144,13 @@ class MustelasQuote(BaseQuote):
         return 
 
     def days(self, stock_id):
-        return self.i[self.n[stock_id]].days
+        d = pd.read_pickle('data/long_indicator2.pkl')
+        pdi = pd.Index(d.index.values)
+        res = self.i[self.n[stock_id]].days
+        di = pd.Index(res.astype('datetime64[s]').astype('datetime64[D]'))
+        pd.options.display.max_seq_items = 120
+        assert_index_equal(di, pdi);
+        return res
 
     def drange(self, stock_id):
         return self.i[self.n[stock_id]].drange
@@ -151,15 +159,17 @@ class MustelasQuote(BaseQuote):
         return self.i[self.n[stock_id]].dlen
     
 q = MustelasQuote("data/quote_df.pkl")
-print(f"\
-sum:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','sum')}\n\
-mean:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','mean')}\n\
-last:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','last')}\n\
-{q.get_data('SH600004','2020-06-11','2020-06-12','$volume')}\n\
-{q.get_data('SH600004','2020-06-11','2020-06-12','$close')}\n\
-{q.get_data('SH600000','2020-01-02 09:31:00', '2020-01-02 09:31:59', '$close')}\n\
-{q.days('SH600000')}\n\
-{q.dlen('SH600000')}\n\
-{q.drange('SH600000')}\n\
-")
+print(q.days('SH600000'))
+
+# print(f"\
+# sum:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','sum')}\n\
+# mean:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','mean')}\n\
+# last:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','last')}\n\
+# {q.get_data('SH600004','2020-06-11','2020-06-12','$volume')}\n\
+# {q.get_data('SH600004','2020-06-11','2020-06-12','$close')}\n\
+# {q.get_data('SH600000','2020-01-02 09:31:00', '2020-01-02 09:31:59', '$close')}\n\
+# {q.days('SH600000')}\n\
+# {q.dlen('SH600000')}\n\
+# {q.drange('SH600000')}\n\
+# ")
 
