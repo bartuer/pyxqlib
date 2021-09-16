@@ -16,71 +16,30 @@ class BaseQuote:
         pass
 
     def get_all_stock(self) -> Iterable:
-        """return all stock codes
-
-        Return
-        ------
-        Iterable
-            all stock codes
-        """
-
         raise NotImplementedError(f"Please implement the `get_all_stock` method")
 
-    def get_data(
-        self,
-        stock_id: str,
-        start_time: Union[pd.Timestamp, str],
-        end_time: Union[pd.Timestamp, str],
-        field: str,
-        method: str,
-    ) -> Union[None, float, pd.Series]:
-
+    def get_data(self, stock_id: str, start_time: Union[pd.Timestamp, str], end_time: Union[pd.Timestamp, str], field: str, method: str,) -> Union[None, float, pd.Series]:
         raise NotImplementedError(f"Please implement the `get_data` method")
 
+def ag(volume, amount, ucount, seq, to, unit):
+    while (np.all(seq < to)): # loop self.dcount
+        yield amount
+        i = int(np.unique(seq))
+        ucount = volume // unit[:,:,i]
+        amount = (ucount + to - seq - 1) // (to - seq) * unit[:,:,i]
+        seq += 1
+        volume -= amount
 
-class PandasQuote(BaseQuote):
-    def __init__(self, quote_df: pd.DataFrame):
-        super().__init__(quote_df=quote_df)
-        quote_dict = {}
-        for stock_id, stock_val in quote_df.groupby(level="instrument"):
-            quote_dict[stock_id] = stock_val.droplevel(level="instrument")
-        self.data = quote_dict
-
-    def get_all_stock(self):
-        return self.data.keys()
-
-    def get_data(self, stock_id, start_time, end_time, field, method):
-        if field is None:
-            return resam_ts_data(self.data[stock_id], start_time, end_time, method=method)
-        elif isinstance(fields, (str, list)):
-            return resam_ts_data(self.data[stock_id][fields], start_time, end_time, method=method)
-        else:
-            raise ValueError(f"fields must be None, str or list")
-
-def t2i(ts):
-    return np.asarray(ts, dtype='datetime64[s]').astype('uint32')
-
-def d2n(df, f):
-    return df[[f]].to_numpy(dtype=df[[f]].dtypes[0]).T[0]
-
-def n2d(n):
-    return pd.DataFrame.from_records(n.reshape(-1,1))
-
-def d2j(a, name):
-    json.dump(a.tolist(), codecs.open(name, 'w', encoding='utf-8'),
-              separators=(',', ':'),
-              sort_keys=True,
-              indent=4) 
-    
 class MustelasQuote(BaseQuote):
     def __init__(self, quote_df: pd.DataFrame):
-        quote_df = pd.read_pickle("data/quote_df.pkl")
+        quote_df = pd.read_pickle(quote_df)
         super().__init__(quote_df=quote_df)
 
         self.i = Tsidx()        # index
         self.d = {}             # cache in numpy
         self.p = {}             # cache in pandas
         self.n = {}             # name
+        self._n = {}            # id -> name
         self.b = {}             # buy limit
         self.s = {}             # sell limit
         j = 0
@@ -88,6 +47,7 @@ class MustelasQuote(BaseQuote):
         # for quote query (READ ONLY)
         for s, v in quote_df.groupby(level="instrument"):
             self.n[s] = j       # stock name
+            self._n[j] = s
             d = v.droplevel(level="instrument")
             if not hasattr(self, 'c'):
                 self.c = dict((c,i) for i, c in enumerate(d.columns)) # column(feature) name
@@ -102,28 +62,57 @@ class MustelasQuote(BaseQuote):
         # for indicators caluculation
         self.ii = self.i[0]       # all stock in fact share time series index
         self.keys = self.n.keys() # stock names
-        self.q = np.stack(list(self.d.values()))[:,1:4,:] # computational quote data
-        self.indicators = ["ffr", "pa", "pos", "deal_amount", "volume", "count"]
+        self.q = np.stack(list(self.d.values()))[:,[self.c['$factor'], self.c['$close']],:] # computational quote data
+        self.indicators = ["ffr", "pa", "pos", "deal_amount", "value", "count"]
         # indicator matrix : (stock,indicator,time range)
-        self.m = np.zeros((self.q.shape[0], len(self.indicators), self.q.shape[2]), dtype=float)
         self.days = self.ii.days # valid trading days as Unix timestamp
         self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
-        self.drange = self.ii.drange # valid trdding days index
+        self.drange = self.ii.drange # valid tradng days index
+        self.dcount = np.diff(np.append(self.drange, self.midx.size))
         
     def map(self, config):
-        ipdb.set_trace()
+        markets = []
+        factor = self.q[:,0,:].astype(float)
+        unit = config['trade_unit'] / factor
+        for i in range(self.q.shape[0]): # tradable
+            unit[i, self.s[self._n[i]]] = np.NaN
+        price = self.q[:,1,:].astype(float)
+        base_price = np.add.reduceat(price, self.drange, axis=1) / self.dcount
+        pa = price / np.repeat(base_price, self.dcount, axis=1) - 1
+        pos = (pa > 0).astype(float)
+        v = config['volume'].values.T * config['volume_ratio']
+        sz = v.shape                     # (stock, day)
+        # bz = int(np.unique(self.dcount)) # batch size, raise if diff dcount
+        bz = 240
+        s = np.zeros(sz, dtype=int)      # seq
+        a = v / bz                       # amount
+        c = np.zeros(sz, dtype=int)      # count
+        t = np.zeros(sz, dtype=int) + bz # to
+        u = unit.reshape(sz + (bz,))     # unit
+        amount = np.stack([i for i in ag(v, a, c, s, t, u)])
+        if np.all(amount[-1,:,:] < v):   # last one is min(a, v)
+            raise ValueError('trade amount error')
+        shape = (sz[0], sz[1] * bz)
+        deal_amount = amount.T.reshape(shape)
+        # _deal_amount = ((deal_amount * factor) + 0.1) // trade_unit * trade_unit / factor  # round doing?
+        value = price * deal_amount
+        ffr = np.ones(shape, dtype=float)
+        ffr[np.where(deal_amount == np.NaN)] = 0
+        count = np.ones(shape)
+        indicators = {"ffr":ffr, "pa":pa, "pos":pos,
+                      "deal_amount":deal_amount,
+                      "value":value, "count":count}
+        for s in range(shape[0]):
+            markets.append(np.stack([indicators[k][s] for k in self.indicators]))
+        self.m = np.stack(markets)
+        return self
 
-    def reduce(self, config):
-        c = len(self.indicators)
-        ms = self.midx.size
-        ds = self.didx.size
-        m = np.zeros((c, ms), dtype=float)
-        self.m.sum(axis=0, out=m)
-        d = np.zeros((c, ds), dtype=float)
-        np.add.reduceat(m, self.drange, axis=1, out=d)
+    def reduce(self):
+        m = self.m.sum(axis=0)
+        d = np.add.reduceat(m, self.drange, axis=1)
         return {
-            "1day"    : pd.DataFrame(d, columns=self.indicators, index=pd.Index(self.didx)),
-            "1minute" : pd.DataFrame(m, columns=self.indicators, index=pd.Index(self.midx)),
+            "1day"    : pd.DataFrame(d.T, columns=self.indicators, index=pd.Index(self.didx)),
+            "1minute" : pd.DataFrame(m.T, columns=self.indicators, index=pd.Index(self.midx)),
         }
 
     def get_all_stock(self):
@@ -185,15 +174,21 @@ class MustelasQuote(BaseQuote):
 
     def dlen(self, stock_id):
         return self.i[self.n[stock_id]].dlen
-    
-q = MustelasQuote("data/quote_df.pkl")
-q.map({
-        'volume':pd.read_pickle("data/volume_df.pkl"),
-        'sample_ratio':1.0,
-        'volume_ratio':0.01,
+
+data_conf = "df"
+q = MustelasQuote(f"data/quote_{data_conf}.pkl")
+print(q.map({
+        'volume':pd.read_pickle(f"data/volume_{data_conf}.pkl"),
+        'sample_ratio':1.0,     # shuffle stock
+        'volume_ratio':0.01,    # initial order amount
+        'open_cost':0.0015,     # unused
+        'close_cost':0.0025,    # unused
+        'trade_unit':100,       # / factor
+        'limit_threshold':0.099,# unused
+        'volume_threshold':None,# remove _get_amount_by_volume
         'start_time':'2020-01-01',
         'end_time':'2020-01-03 16:00'
-    })
+    }).reduce())
 # print(f"\
 #  sum:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','sum')}\n\
 #  mean:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','mean')}\n\
