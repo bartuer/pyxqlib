@@ -64,7 +64,16 @@ cdef class _Tsidx:
         self._idx = new tsidx.TSIdx()
         self._check_sums_ = check_sum_list
 
-
+    def _(self, x):
+        if x.start is None:
+            return self._idx.dstop(x.stop) - 1
+        elif x.stop is None:
+            return self._idx.dstart(x.start)
+        else:
+            start_ = self._idx.dstart(x.start)
+            stop_ = self._idx.dstop(x.stop)
+            return slice(start_, stop_)
+        
     def __getitem__(self, x):
         if x.start is None:
             return self._idx.stop(x.stop) - 1

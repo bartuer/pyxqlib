@@ -121,6 +121,25 @@ uint32_t TSIdx::start(uint32_t start) {
   }
 }
 
+uint32_t TSIdx::dstart(uint32_t start) {
+  int d = start / DAY_SECS;
+  size_t dlen = this->d_index.size();
+  if (d < this->d_beg) {
+    return 0;
+  }
+  int i = std::max(0, d - this->d_beg);
+  if (i >= this->days) {
+    return dlen;
+  }
+  uint32_t j;
+  for (j = 0; j < dlen; j++) {
+    if (this->d_index[j] - start >= 0) {
+      return j;
+    }
+  }
+  return j;
+}
+
 uint32_t TSIdx::stop_search_plain(size_t i, int s) {
   uint32_t d = this->d_xdi[i];
   uint32_t n;
@@ -155,6 +174,25 @@ uint32_t TSIdx::stop(uint32_t stop) {
   } else {
     return this->stop_search_plain(i, stop);
   }
+}
+
+uint32_t TSIdx::dstop(uint32_t stop) {
+  int d = stop / DAY_SECS;
+  size_t dlen = this->d_index.size();
+  if (d > this->d_end) {
+    return dlen;
+  }
+  int i = std::min(d - this->d_beg, this->days - 1);
+  if (i < 0) {
+    return 0;
+  }
+  uint32_t j;
+  for (j = dlen - 1; j >= 0; j--) {
+    if (this->d_index[j] - stop <= 0) {
+      return j + 1;
+    }
+  }
+  return j + 1;
 }
 
 std::pair<uint32_t, uint32_t> TSIdx::index(uint32_t start, uint32_t stop) {
