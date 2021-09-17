@@ -2,6 +2,7 @@
 # Licensed under the MIT License.
 
 
+import cProfile
 from typing import List, Tuple, Union, Callable, Iterable, Dict
 import pandas as pd
 import numpy as np
@@ -9,6 +10,11 @@ import json,codecs
 from pyxqlib import Tsidx
 from pandas.testing import assert_index_equal
 import ipdb
+from datetime import datetime
+
+
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
 
 class BaseQuote:
 
@@ -22,9 +28,9 @@ class BaseQuote:
         raise NotImplementedError(f"Please implement the `get_data` method")
 
 def ag(volume, amount, ucount, seq, to, unit):
-    while (np.all(seq < to)): # loop self.dcount
+    while (seq[0,0] < to[0,0]): # loop self.dcount
         yield amount
-        i = int(np.unique(seq))
+        i = seq[0,0]
         ucount = volume // unit[:,:,i]
         amount = (ucount + to - seq - 1) // (to - seq) * unit[:,:,i]
         seq += 1
@@ -35,81 +41,93 @@ class MustelasQuote(BaseQuote):
         quote_df = pd.read_pickle(quote_df)
         super().__init__(quote_df=quote_df)
 
-        self.i = Tsidx()        # index
+        self.i = Tsidx()        # ts index
         self.d = {}             # cache in numpy
         self.p = {}             # cache in pandas
-        self.n = {}             # name
-        self._n = {}            # id -> name
+        self.n = {}             # name -> id
         self.b = {}             # buy limit
         self.s = {}             # sell limit
-        j = 0
+        self._n = {}            # id -> name
 
-        # for quote query (READ ONLY)
+        j = 0
+        # for quote query (READONLY)
         for s, v in quote_df.groupby(level="instrument"):
-            self.n[s] = j       # stock name
-            self._n[j] = s
+            self.n[s] = j                                             # stock name index
+            self._n[j] = s                                            # stock name reverse index
             d = v.droplevel(level="instrument")
             if not hasattr(self, 'c'):
                 self.c = dict((c,i) for i, c in enumerate(d.columns)) # column(feature) name
-                self.midx = d.index.values.astype('datetime64[s]') # minutes time index
-            self.i[j] = d.index.values.astype('datetime64[s]').astype('uint32') # time index
-            self.d[s] = d.values.T # feature in numpy
-            self.p[s] = [d[[f]] for f in self.c.keys()] # feature in pandas
+                self.midx = d.index.values.astype('datetime64[s]')    # minutes time index ts(min)
+            self.i[j] = d.index.values.astype('datetime64[s]').astype('uint32')
+            self.d[s] = d.values.T                                    # feature in numpy
+            self.p[s] = [d[[f]] for f in self.c.keys()]               # feature in pandas (not for map.reduce )
             self.b[s] = np.asarray(np.where(self.d[s][self.c['limit_buy']]==True)[0], dtype=np.int32) # buy limitation
             self.s[s] = np.asarray(np.where(self.d[s][self.c['limit_sell']]==True)[0],dtype=np.int32) # sell limitation
             j += 1
 
-        # for indicators caluculation
-        self.ii = self.i[0]       # all stock in fact share time series index
-        self.keys = self.n.keys() # stock names
-        self.q = np.stack(list(self.d.values()))[:,[self.c['$factor'], self.c['$close']],:] # computational quote data
+        # for indicators map.reduce (WRITE self.m)
         self.indicators = ["ffr", "pa", "pos", "deal_amount", "value", "count"]
-        # indicator matrix : (stock,indicator,time range)
-        self.days = self.ii.days # valid trading days as Unix timestamp
+        self.ii = self.i[0]                                           # share time series index (CRC cache)
+        self.keys = self.n.keys()                                     # stock names
+        pick = [self.c[f] for f in ['$factor', '$close']]
+        self.q = np.stack(list(self.d.values()))[:, pick, :]          # picks for map.reduce
+        self.days = self.ii.days                                      # valid trading days ts(day)
         self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
-        self.drange = self.ii.drange # valid tradng days index
-        self.dcount = np.diff(np.append(self.drange, self.midx.size))
+        self.drange = self.ii.drange                                  # valid trading days pos index
+        self.dcount = np.diff(np.append(self.drange, self.midx.size)) # valid trading days interval
+
+        # handle trading day inccidence
+        self.dcountuniq = np.unique(self.dcount)
+        if (self.dcountuniq.size != 1):
+            raise ValueError('dcount is not equal')
         
     def map(self, config):
-        markets = []
-        factor = self.q[:,0,:].astype(float)
+        stocks = self.q.shape[0]
+        markets = [None] * stocks
+
+        factor = self.q[:,0,:].astype(float) # (stock, min)
         unit = config['trade_unit'] / factor
-        for i in range(self.q.shape[0]): # tradable
+        bz = int(self.dcountuniq)            # batch size (4 hours exchange, 240 min)
+        for i in range(self.q.shape[0]):     # tradable
             unit[i, self.s[self._n[i]]] = np.NaN
-        price = self.q[:,1,:].astype(float)
+        price = self.q[:,1,:].astype(float)  # (stock, min)
         base_price = np.add.reduceat(price, self.drange, axis=1) / self.dcount
-        pa = price / np.repeat(base_price, self.dcount, axis=1) - 1
-        pos = (pa > 0).astype(float)
-        v = config['volume'].values.T * config['volume_ratio']
-        sz = v.shape                     # (stock, day)
-        # bz = int(np.unique(self.dcount)) # batch size, raise if diff dcount
-        bz = 240
-        s = np.zeros(sz, dtype=int)      # seq
-        a = v / bz                       # amount
-        c = np.zeros(sz, dtype=int)      # count
-        t = np.zeros(sz, dtype=int) + bz # to
-        u = unit.reshape(sz + (bz,))     # unit
+        dir = config['order_dir']
+        pa = (price / np.repeat(base_price, self.dcount, axis=1) - 1) * stocks * dir
+        pos = (pa > 0).astype(float) / stocks
+
+        v = config['volume'].values.T * config['volume_ratio'] 
+        sz = v.shape                         # (day, stock)
+        s = np.zeros(sz, dtype=int)          # seq
+        a = v / bz                           # amount
+        c = np.zeros(sz, dtype=int)          # count
+        t = np.zeros(sz, dtype=int) + bz     # to
+        u = unit.reshape(sz + (bz,))         # unit
         amount = np.stack([i for i in ag(v, a, c, s, t, u)])
-        if np.all(amount[-1,:,:] < v):   # last one is min(a, v)
-            raise ValueError('trade amount error')
-        shape = (sz[0], sz[1] * bz)
-        deal_amount = amount.T.reshape(shape)
-        # _deal_amount = ((deal_amount * factor) + 0.1) // trade_unit * trade_unit / factor  # round doing?
+        if np.all(amount[-1,:,:] < v):       # last minitue is min(a, v)
+            raise ValueError('left too much trade amount ')
+
+        shape = (sz[1], sz[0] * bz)          # (stock, min)
+        deal_amount = amount.T.reshape(shape) 
+        if (config['round_amount']):
+            tu = config['trade_unit']
+            _deal_amount = ((deal_amount * factor) + 0.1) // tu * tu / factor
         value = price * deal_amount
-        ffr = np.ones(shape, dtype=float)
+        ffr = np.ones(shape, dtype=float) / stocks
         ffr[np.where(deal_amount == np.NaN)] = 0
-        count = np.ones(shape)
-        indicators = {"ffr":ffr, "pa":pa, "pos":pos,
-                      "deal_amount":deal_amount,
-                      "value":value, "count":count}
+        count = np.ones(shape) 
+        
+        locals_  = locals()
+        data = dict((k, locals_[k]) for k in self.indicators)
         for s in range(shape[0]):
-            markets.append(np.stack([indicators[k][s] for k in self.indicators]))
-        self.m = np.stack(markets)
+            markets[s] = np.stack([data[k][s] for k in self.indicators])
+        self.m = np.stack(markets)           # (stock, indicator, min)
         return self
 
     def reduce(self):
-        m = self.m.sum(axis=0)
-        d = np.add.reduceat(m, self.drange, axis=1)
+        m = self.m.sum(axis=0)                      # aggregate by stock
+        d = np.add.reduceat(m, self.drange, axis=1) # aggregate one day
+        d[[0,1,2,5]] /= int(self.dcountuniq)        # avg on ffr, pa, pos, count
         return {
             "1day"    : pd.DataFrame(d.T, columns=self.indicators, index=pd.Index(self.didx)),
             "1minute" : pd.DataFrame(m.T, columns=self.indicators, index=pd.Index(self.midx)),
@@ -160,43 +178,44 @@ class MustelasQuote(BaseQuote):
         elif (method == 'any'):    # exception
             raise NotImplementedError("not implement")
         else:
-            raise ValueError("fields and method should be str, and method should be one of: last, sum, mean, all, None")
+            raise ValueError("method should be one of: last, sum, mean, all, None")
         return 
-
-    def check_days(self, stock_id):
-        d = pd.read_pickle('data/long_indicator2.pkl')
-        pdi = pd.Index(d.index.values)
-        res = self.i[self.n[stock_id]].days
-        di = pd.Index(res.astype('datetime64[s]').astype('datetime64[D]'))
-        pd.options.display.max_seq_items = 120
-        # assert_index_equal(di, pdi);
-        return res
 
     def dlen(self, stock_id):
         return self.i[self.n[stock_id]].dlen
 
-data_conf = "df"
-q = MustelasQuote(f"data/quote_{data_conf}.pkl")
-print(q.map({
+if True:                        # Calculation API test of MustelasQuote
+    data_conf = "1d"
+    strategy = {
         'volume':pd.read_pickle(f"data/volume_{data_conf}.pkl"),
-        'sample_ratio':1.0,     # shuffle stock
+        'sample_ratio':1.0,     # shuffle/selection stock
         'volume_ratio':0.01,    # initial order amount
-        'open_cost':0.0015,     # unused
-        'close_cost':0.0025,    # unused
-        'trade_unit':100,       # / factor
+        'open_cost':0.0015,     # unused trade_cost not include in final report
+        'close_cost':0.0025,    # unused ...
+        'trade_unit':100,       # PRC market
         'limit_threshold':0.099,# unused
-        'volume_threshold':None,# remove _get_amount_by_volume
-        'start_time':'2020-01-01',
-        'end_time':'2020-01-03 16:00'
-    }).reduce())
-# print(f"\
-#  sum:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','sum')}\n\
-#  mean:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','mean')}\n\
-#  {q.get_data('SH600004','2020-06-11','2020-06-12','$volume')}\n\
-#  {q.get_data('SH600004','2020-06-11','2020-06-12','$close')}\n\
-#  {q.get_data('SH600000','2020-01-02 09:31:00', '2020-01-02 09:31:59', '$close')}\n\
-#  {q.dlen('SH600000')}\n\
-#  {q.days}\n\
-#  {q.drange}\n\
-#  ")
+        'order_dir':-1,         # BUY, from RandomOrderStrategy
+        'volume_threshold':None,# NOT _get_amount_by_volume
+        'agg':'twap',           # base_price ignore volume (pa_config)
+        'round_amount':False,   # round_amount_by_trade_unit,  What The Round ?
+        'start_time':'',        # already in calendar
+        'end_time':''           # ...
+    }
+    pr = cProfile.Profile()
+    pr.enable()
+    res = MustelasQuote(f"data/quote_{data_conf}.pkl").map(strategy).reduce()
+    pr.disable()
+    pr.dump_stats(f"data/{datetime.now().strftime('%y-%m-%d_%H:%M')}.prof")
+    print(res)
+else:                           # Query API test of MustelasQuote
+    print(f"\
+     sum:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','sum')}\n\
+     mean:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','mean')}\n\
+     {q.get_data('SH600004','2020-06-11','2020-06-12','$volume')}\n\
+     {q.get_data('SH600004','2020-06-11','2020-06-12','$close')}\n\
+     {q.get_data('SH600000','2020-01-02 09:31:00', '2020-01-02 09:31:59', '$close')}\n\
+     {q.dlen('SH600000')}\n\
+     {q.days}\n\
+     {q.drange}\n\
+     ")
 
