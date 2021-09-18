@@ -30,10 +30,10 @@ class BaseQuote:
 # TODO: convert the generator to map
 def ag(volume, amount, ucount, seq, to, unit):
     while (seq[0,0] < to[0,0]): # loops : mins in day
-        yield amount
         i = seq[0,0]
         ucount = volume // unit[:,:,i]
         amount = (ucount + to - seq - 1) // (to - seq) * unit[:,:,i]
+        yield amount
         seq += 1
         volume -= amount
 
@@ -127,7 +127,7 @@ class MustelasQuote(BaseQuote):
             market[s] = np.stack([data[k][s] for k in self.indicators])
         self.m = np.stack(market)            # (stock, indicator, min)
         self.price = price                   # REALLY UGLY PA CALCULATION BUG
-        self.dir   = config['order_dir']
+        self.dir = config['order_dir']
         return self
 
     def reduce(self):
