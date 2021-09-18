@@ -27,6 +27,7 @@ class BaseQuote:
     def get_data(self, stock_id: str, start_time: Union[pd.Timestamp, str], end_time: Union[pd.Timestamp, str], field: str, method: str,) -> Union[None, float, pd.Series]:
         raise NotImplementedError(f"Please implement the `get_data` method")
 
+# TODO: convert the generator to map
 def ag(volume, amount, ucount, seq, to, unit):
     while (seq[0,0] < to[0,0]): # loops : mins in day
         yield amount
@@ -82,19 +83,20 @@ class MustelasQuote(BaseQuote):
         
     def map(self, config):
         stocks = self.q.shape[0]
-        markets = [None] * stocks
 
-        factor = self.q[:,0,:].astype(float) # (stock, min)
-        unit = config['trade_unit'] / factor
-        bz = int(self.dcountuniq)            # batch size (4 hours exchange, 240 min)
-        for i in range(self.q.shape[0]):     # loops : stocks 
-            unit[i, self.s[self._n[i]]] = np.NaN
+        # Price Chain
         price = self.q[:,1,:].astype(float)  # (stock, min)
         base_price = np.add.reduceat(price, self.drange, axis=1) / self.dcount
         dir = config['order_dir']
         pa = (price / np.repeat(base_price, self.dcount, axis=1) - 1) * stocks * dir
         pos = (pa > 0).astype(float) / stocks
 
+        # Order Amount Generation
+        bz = int(self.dcountuniq)            # batch size (4 hours exchange, 240 min)
+        factor = self.q[:,0,:].astype(float) # (stock, min)
+        unit = config['trade_unit'] / factor
+        for i in range(self.q.shape[0]):     # loops : stocks 
+            unit[i, self.s[self._n[i]]] = np.NaN
         v = config['volume'].values.T * config['volume_ratio'] 
         sz = v.shape                         # (day, stock)
         s = np.zeros(sz, dtype=int)          # seq
@@ -106,6 +108,7 @@ class MustelasQuote(BaseQuote):
         if np.all(amount[-1,:,:] < v):       # last minitue is min(a, v)
             raise ValueError('left too much trade amount ')
 
+        # Amount Chain
         shape = (sz[1], sz[0] * bz)          # (stock, min)
         deal_amount = amount.T.reshape(shape) 
         if (config['round_amount']):
@@ -115,12 +118,14 @@ class MustelasQuote(BaseQuote):
         ffr = np.ones(shape, dtype=float) / stocks
         ffr[np.where(deal_amount == np.NaN)] = 0
         count = np.ones(shape) 
-        
+
+        # Result Tensor
         locals_ = locals()
         data = dict((k, locals_[k]) for k in self.indicators)
+        market = [None] * stocks
         for s in range(shape[0]):            # loops : stocks
-            markets[s] = np.stack([data[k][s] for k in self.indicators])
-        self.m = np.stack(markets)           # (stock, indicator, min)
+            market[s] = np.stack([data[k][s] for k in self.indicators])
+        self.m = np.stack(market)            # (stock, indicator, min)
         return self
 
     def reduce(self):
