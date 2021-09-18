@@ -28,7 +28,7 @@ class BaseQuote:
         raise NotImplementedError(f"Please implement the `get_data` method")
 
 def ag(volume, amount, ucount, seq, to, unit):
-    while (seq[0,0] < to[0,0]): # loop self.dcount
+    while (seq[0,0] < to[0,0]): # loops : mins in day
         yield amount
         i = seq[0,0]
         ucount = volume // unit[:,:,i]
@@ -51,14 +51,14 @@ class MustelasQuote(BaseQuote):
 
         j = 0
         # for quote query (READONLY)
-        for s, v in quote_df.groupby(level="instrument"):
+        for s, v in quote_df.groupby(level="instrument"):             # loops : stock
             self.n[s] = j                                             # stock name index
             self._n[j] = s                                            # stock name reverse index
             d = v.droplevel(level="instrument")
             if not hasattr(self, 'c'):
-                self.c = dict((c,i) for i, c in enumerate(d.columns)) # column(feature) name
+                self.c = dict((c,i) for i, c in enumerate(d.columns)) # column(feature) name, loops : feature
                 self.midx = d.index.values.astype('datetime64[s]')    # minutes time index ts(min)
-            self.i[j] = d.index.values.astype('datetime64[s]').astype('uint32')
+            self.i[j] = self.midx.astype('uint32')                    # ts index build 
             self.d[s] = d.values.T                                    # feature in numpy
             self.p[s] = [d[[f]] for f in self.c.keys()]               # feature in pandas (not for map.reduce )
             self.b[s] = np.asarray(np.where(self.d[s][self.c['limit_buy']]==True)[0], dtype=np.int32) # buy limitation
@@ -67,15 +67,14 @@ class MustelasQuote(BaseQuote):
 
         # for indicators map.reduce (WRITE self.m)
         self.indicators = ["ffr", "pa", "pos", "deal_amount", "value", "count"]
-        self.ii = self.i[0]                                           # share time series index (CRC cache)
-        self.keys = self.n.keys()                                     # stock names
-        pick = [self.c[f] for f in ['$factor', '$close']]
-        self.q = np.stack(list(self.d.values()))[:, pick, :]          # picks for map.reduce
+        self.keys = self.n.keys()                                     # cache for get_all_stock
+        self.ii = self.i[0]                                           # shared time series index (CRC cache)
+        pick = [self.c[f] for f in ['$factor', '$close']]             # picks for map.reduce
+        self.q = np.stack(list(self.d.values()))[:, pick, :]          # volume from strategy but factor from quote
         self.days = self.ii.days                                      # valid trading days ts(day)
-        self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
         self.drange = self.ii.drange                                  # valid trading days pos index
         self.dcount = np.diff(np.append(self.drange, self.midx.size)) # valid trading days interval
-
+        self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
         # handle trading day inccidence
         self.dcountuniq = np.unique(self.dcount)
         if (self.dcountuniq.size != 1):
@@ -88,7 +87,7 @@ class MustelasQuote(BaseQuote):
         factor = self.q[:,0,:].astype(float) # (stock, min)
         unit = config['trade_unit'] / factor
         bz = int(self.dcountuniq)            # batch size (4 hours exchange, 240 min)
-        for i in range(self.q.shape[0]):     # tradable
+        for i in range(self.q.shape[0]):     # loops : stocks 
             unit[i, self.s[self._n[i]]] = np.NaN
         price = self.q[:,1,:].astype(float)  # (stock, min)
         base_price = np.add.reduceat(price, self.drange, axis=1) / self.dcount
@@ -117,9 +116,9 @@ class MustelasQuote(BaseQuote):
         ffr[np.where(deal_amount == np.NaN)] = 0
         count = np.ones(shape) 
         
-        locals_  = locals()
+        locals_ = locals()
         data = dict((k, locals_[k]) for k in self.indicators)
-        for s in range(shape[0]):
+        for s in range(shape[0]):            # loops : stocks
             markets[s] = np.stack([data[k][s] for k in self.indicators])
         self.m = np.stack(markets)           # (stock, indicator, min)
         return self
@@ -127,7 +126,7 @@ class MustelasQuote(BaseQuote):
     def reduce(self):
         m = self.m.sum(axis=0)                      # aggregate by stock
         d = np.add.reduceat(m, self.drange, axis=1) # aggregate one day
-        d[[0,1,2,5]] /= int(self.dcountuniq)        # avg on ffr, pa, pos, count
+        d[[0,1,2,5]] /= int(self.dcountuniq)        # avgerage on ffr, pa, pos, count
         return {
             "1day"    : pd.DataFrame(d.T, columns=self.indicators, index=pd.Index(self.didx)),
             "1minute" : pd.DataFrame(m.T, columns=self.indicators, index=pd.Index(self.midx)),
