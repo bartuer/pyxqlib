@@ -14,7 +14,7 @@ from datetime import datetime
 
 
 pd.set_option('display.max_columns', None)
-pd.set_option('display.max_rows', None)
+pd.set_option('display.max_rows', 12)
 
 class BaseQuote:
 
@@ -37,6 +37,16 @@ def ag(volume, amount, ucount, seq, to, unit):
         seq += 1
         volume -= amount
 
+def drop_volume_data_absent_in_quote(volume, days):
+    vidx = volume.columns.values.astype('datetime64[s]').astype('uint32')
+    if (vidx.shape == days.shape):
+        return volume
+    else:
+        rm_d = np.setdiff1d(vidx, days).astype('datetime64[s]').astype('datetime64[D]')
+        for day in rm_d:
+            volume = volume.drop(day, axis=1)
+        return volume
+    
 class MustelasQuote(BaseQuote):
     def __init__(self, quote_df: pd.DataFrame):
         quote_df = pd.read_pickle(quote_df)
@@ -79,7 +89,8 @@ class MustelasQuote(BaseQuote):
         # handle trading day inccidence
         self.dcountuniq = np.unique(self.dcount)
         if (self.dcountuniq.size != 1):
-            raise ValueError('dcount is not equal')
+            ipdb.set_trace()
+            # raise ValueError('dcount is not equal')
         
     def map(self, config):
         stocks = self.q.shape[0]
@@ -93,7 +104,9 @@ class MustelasQuote(BaseQuote):
         unit = config['trade_unit'] / factor
         for i in range(self.q.shape[0]):     # loops : stocks 
             unit[i, self.s[self._n[i]]] = np.NaN
-        v = config['volume'].values.T * config['volume_ratio'] 
+
+        volume = drop_volume_data_absent_in_quote(config['volume'], self.days)
+        v = volume.values.T * config['volume_ratio'] 
         sz = v.shape                         # (day, stock)
         s = np.zeros(sz, dtype=int)          # seq
         a = v / bz                           # amount
@@ -123,7 +136,7 @@ class MustelasQuote(BaseQuote):
         locals_ = locals()
         data = dict((k, locals_[k]) for k in self.indicators)
         market = [None] * stocks
-        for s in range(shape[0]):            # loops : stocks
+        for s in range(shape[0]):            # loops : stocks * indicators
             market[s] = np.stack([data[k][s] for k in self.indicators])
         self.m = np.stack(market)            # (stock, indicator, min)
         self.price = price                   # REALLY UGLY PA CALCULATION BUG
@@ -196,7 +209,7 @@ class MustelasQuote(BaseQuote):
         return self.i[self.n[stock_id]].dlen
 
 if True:                        # Calculation API test of MustelasQuote
-    data_conf = "1d"
+    data_conf = "m"
     strategy = {
         'volume':pd.read_pickle(f"data/volume_{data_conf}.pkl"),
         'sample_ratio':1.0,     # shuffle/selection stock
@@ -219,6 +232,7 @@ if True:                        # Calculation API test of MustelasQuote
     pr.dump_stats(f"data/{datetime.now().strftime('%y-%m-%d_%H:%M')}.prof")
     print(res)
 else:                           # Query API test of MustelasQuote
+    q = MustelasQuote(f"data/quote_df.pkl")
     print(f"\
      sum:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','sum')}\n\
      mean:{q.get_data('SH600004','2020-05-30','2020-06-12','$volume','mean')}\n\
