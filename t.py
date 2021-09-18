@@ -86,10 +86,6 @@ class MustelasQuote(BaseQuote):
 
         # Price Chain
         price = self.q[:,1,:].astype(float)  # (stock, min)
-        base_price = np.add.reduceat(price, self.drange, axis=1) / self.dcount
-        dir = config['order_dir']
-        pa = (price / np.repeat(base_price, self.dcount, axis=1) - 1) * stocks * dir
-        pos = (pa > 0).astype(float) / stocks
 
         # Order Amount Generation
         bz = int(self.dcountuniq)            # batch size (4 hours exchange, 240 min)
@@ -119,6 +115,10 @@ class MustelasQuote(BaseQuote):
         ffr[np.where(deal_amount == np.NaN)] = 0
         count = np.ones(shape) 
 
+        # Price chain
+        pa = np.zeros(shape, dtype=float)    # MAYBE A BUG (link "r2c.org" 2141) (link "r2c.org" 3265)
+        pos = np.zeros(shape, dtype=float)
+
         # Result Tensor
         locals_ = locals()
         data = dict((k, locals_[k]) for k in self.indicators)
@@ -126,12 +126,19 @@ class MustelasQuote(BaseQuote):
         for s in range(shape[0]):            # loops : stocks
             market[s] = np.stack([data[k][s] for k in self.indicators])
         self.m = np.stack(market)            # (stock, indicator, min)
+        self.price = price                   # REALLY UGLY PA CALCULATION BUG
+        self.dir   = config['order_dir']
         return self
 
     def reduce(self):
         m = self.m.sum(axis=0)                      # aggregate by stock
         d = np.add.reduceat(m, self.drange, axis=1) # aggregate one day
-        d[[0,1,2,5]] /= int(self.dcountuniq)        # avgerage on ffr, pa, pos, count
+
+        base_price = np.add.reduceat(self.price, self.drange, axis=1) / self.dcount
+        d[1] = ((d[4] / d[3]) / base_price - 1) * self.dir
+        d[2] = (d[1] > 0).astype(float) 
+        d[[0,5]] /= int(self.dcountuniq)            # avgerage on ffr, count
+
         return {
             "1day"    : pd.DataFrame(d.T, columns=self.indicators, index=pd.Index(self.didx)),
             "1minute" : pd.DataFrame(m.T, columns=self.indicators, index=pd.Index(self.midx)),
