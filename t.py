@@ -29,11 +29,11 @@ class BaseQuote:
 
 def drop_volume_data_absent_in_quote(volume, days):
     vidx = volume.columns.values.astype('datetime64[s]').astype('uint32')
+    _index = dict((d,i) for i,d in enumerate(vidx))
+    mask = np.ones(vidx.size, dtype=bool)
     if (vidx.shape != days.shape):
-        rm_d = np.setdiff1d(vidx, days).astype('datetime64[s]').astype('datetime64[D]')
-        for day in rm_d:
-            volume = volume.drop(day, axis=1)
-    return volume
+        mask[[_index[i] for i in np.setdiff1d(vidx, days)]] = False
+    return mask
     
 class MustelasQuote(BaseQuote):
     def __init__(self, quote_df: pd.DataFrame):
@@ -68,8 +68,6 @@ class MustelasQuote(BaseQuote):
         self.indicators = ["ffr", "pa", "pos", "deal_amount", "value", "count"]
         self.keys = self.n.keys()                                     # cache for get_all_stock
         self.ii = self.i[0]                                           # shared time series index (CRC cache)
-        pick = [self.c[f] for f in ['$factor', '$close']]             # picks for map.reduce
-        self.q = np.stack(list(self.d.values()))[:, pick, :]          # volume from strategy but factor from quote
         self.days = self.ii.days                                      # valid trading days ts(day)
         self.drange = self.ii.drange                                  # valid trading days pos index
         self.dcount = self.ii.dcount                                  # valid trading days interval
@@ -80,6 +78,8 @@ class MustelasQuote(BaseQuote):
             e = self.drange[i] + self.mod
             self.mask[b:e] = False
         self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
+        pick = [self.c[f] for f in ['$factor', '$close']]             # picks for map.reduce
+        self.q = np.stack([v.astype(float) for v in self.d.values()])[:, pick, :]         
 
     def map(self, config):
         stocks = self.q.shape[0]
@@ -95,8 +95,8 @@ class MustelasQuote(BaseQuote):
             unit[i, self.s[self._n[i]]] = np.NaN
 
         # Amount Chain
-        volume = drop_volume_data_absent_in_quote(config['volume'], self.days)
-        v = volume.values * config['volume_ratio'] 
+        drop = drop_volume_data_absent_in_quote(config['volume'], self.days)
+        v = config['volume'].values[:,drop] * config['volume_ratio'] 
         ushape = tuple([shape[0], 1])
         utotal = np.repeat(v // unit[:,self.drange], self.dcount, axis=1)
         ucount = np.repeat(np.tile(self.dcount, ushape), self.dcount, axis=1)
