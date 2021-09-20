@@ -82,14 +82,15 @@ class MustelasQuote(BaseQuote):
         self.q = np.stack(list(self.d.values()))[:, pick, :]          # volume from strategy but factor from quote
         self.days = self.ii.days                                      # valid trading days ts(day)
         self.drange = self.ii.drange                                  # valid trading days pos index
-        self.dcount = np.diff(np.append(self.drange, self.midx.size)) # valid trading days interval
+        self.dcount = self.ii.dcount                                  # valid trading days interval
+        self.mod = np.max(np.unique(self.dcount))                     # trading minutes of day
+        self.mask = np.ones(self.ii.dlen * self.mod, dtype=bool)
+        for i in np.where(self.dcount != self.mod)[0]:
+            b = self.drange[i] + self.dcount[i]
+            e = self.drange[i] + self.mod
+            self.mask[b:e] = False
         self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
-        # handle trading day inccidence
-        self.dcountuniq = np.unique(self.dcount)
-        if (self.dcountuniq.size != 1):
-            pass
-            # raise ValueError('dcount is not equal')
-        
+
     def map(self, config):
         stocks = self.q.shape[0]
 
@@ -103,21 +104,31 @@ class MustelasQuote(BaseQuote):
         for i in range(self.q.shape[0]):     # loops : stocks 
             unit[i, self.s[self._n[i]]] = np.NaN
 
-        volume = drop_volume_data_absent_in_quote(config['volume'], self.days)
-        v = volume.values.T * config['volume_ratio'] 
-        sz = v.shape                         # (day, stock)
-        bz0 = self.dcount[0]
-        s = np.zeros(sz, dtype=int)          # seq
-        a = v / bz0                          # amount
-        c = np.zeros(sz, dtype=int)          # count
-        t = np.zeros(sz, dtype=int) + bz0    # to
-        u = unit.reshape(sz + (bz0,))        # unit
-        amount = np.stack([i for i in ag(v, a, c, s, t, u)])
-        if np.all(amount[-1,:,:] < v):       # last minitue is min(a, v)
-            raise ValueError('left too much trade amount ')
-
         # Amount Chain
-        deal_amount = amount.T.reshape(shape) 
+        volume = drop_volume_data_absent_in_quote(config['volume'], self.days)
+        v = volume.values * config['volume_ratio'] 
+        ushape = tuple([shape[0], 1])
+        utotal = np.repeat(v // unit[:,self.drange], self.dcount, axis=1)
+        ucount = np.repeat(np.tile(self.dcount, ushape), self.dcount, axis=1)
+        unum = np.ceil(utotal / ucount)
+        useq = np.tile(np.repeat(np.arange(self.mod), self.dcount.size)[self.mask], ushape)
+        utrade = np.ceil((utotal - useq * unum) / (ucount - useq))
+        deal_amount = np.where(utrade == unum, utrade, unum - 1) * unit
+
+        if (False):
+            v = volume.values.T * config['volume_ratio'] 
+            sz = v.shape                         # (day, stock)
+            bz0 = self.dcount[0]
+            s = np.zeros(sz, dtype=int)          # seq
+            a = v / bz0                          # amount
+            c = np.zeros(sz, dtype=int)          # count
+            t = np.zeros(sz, dtype=int) + bz0    # to
+            u = unit.reshape(sz + (bz0,))        # unit
+            slow_amount = np.stack([i for i in ag(v, a, c, s, t, u)])
+            if np.all(amount[-1,:,:] < v):       # last minitue is min(a, v)
+                raise ValueError('left too much trade amount ')
+            deal_amount = amount.T.reshape(shape) 
+
         if (config['round_amount']):
             tu = config['trade_unit']
             _deal_amount = ((deal_amount * factor) + 0.1) // tu * tu / factor
@@ -145,10 +156,10 @@ class MustelasQuote(BaseQuote):
         m = self.m.sum(axis=0)                      # aggregate by stock
         d = np.add.reduceat(m, self.drange, axis=1) # aggregate one day
 
-        base_price = np.add.reduceat(self.price, self.drange, axis=1) / self.dcount
+        base_price = np.add.reduceat(self.price.sum(axis=0) / self.m.shape[0], self.drange) / self.dcount
         d[1] = ((d[4] / d[3]) / base_price - 1) * self.dir
         d[2] = (d[1] > 0).astype(float) 
-        d[[0,5]] /= int(self.dcountuniq)            # avgerage on ffr, count
+        d[[0,5]] /= self.dcount                     # avgerage on ffr, count
 
         return {
             "1day"    : pd.DataFrame(d.T, columns=self.indicators, index=pd.Index(self.didx)),
@@ -207,7 +218,7 @@ class MustelasQuote(BaseQuote):
         return self.i[self.n[stock_id]].dlen
 
 if True:                        # Calculation API test of MustelasQuote
-    data_conf = "1d"
+    data_conf = "df"
     strategy = {
         'volume':pd.read_pickle(f"data/volume_{data_conf}.pkl"),
         'sample_ratio':1.0,     # shuffle/selection stock
@@ -228,7 +239,7 @@ if True:                        # Calculation API test of MustelasQuote
     res = MustelasQuote(f"data/quote_{data_conf}.pkl").map(strategy).reduce()
     pr.disable()
     pr.dump_stats(f"data/{datetime.now().strftime('%y-%m-%d_%H:%M')}.prof")
-    print(res)
+    print(res);
 else:                           # Query API test of MustelasQuote
     q = MustelasQuote(f"data/quote_df.pkl")
     print(f"\

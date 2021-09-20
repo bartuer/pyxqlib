@@ -52,6 +52,14 @@ cdef class _Tsidx:
         def __get__(self):
             return self._idx.dlen()
 
+    property dcount:
+        def __get__(self):
+            return  np.diff(np.append(self.drange, self._size))
+
+    property dmask:
+       def __get__(self):
+           return np.where(self.dcount != 240)
+
     def __len__(self):
         return self._size
 
