@@ -27,16 +27,6 @@ class BaseQuote:
     def get_data(self, stock_id: str, start_time: Union[pd.Timestamp, str], end_time: Union[pd.Timestamp, str], field: str, method: str,) -> Union[None, float, pd.Series]:
         raise NotImplementedError(f"Please implement the `get_data` method")
 
-# TODO: convert the generator to map
-def ag(volume, amount, ucount, seq, to, unit):
-    while (seq[0,0] < to[0,0]): # loops : mins in day
-        i = seq[0,0]
-        ucount = volume // unit[:,:,i]
-        amount = (ucount + to - seq - 1) // (to - seq) * unit[:,:,i]
-        yield amount
-        seq += 1
-        volume -= amount
-
 def drop_volume_data_absent_in_quote(volume, days):
     vidx = volume.columns.values.astype('datetime64[s]').astype('uint32')
     if (vidx.shape != days.shape):
@@ -114,20 +104,6 @@ class MustelasQuote(BaseQuote):
         useq = np.tile(np.repeat(np.arange(self.mod), self.dcount.size)[self.mask], ushape)
         utrade = np.ceil((utotal - useq * unum) / (ucount - useq))
         deal_amount = np.where(utrade == unum, utrade, unum - 1) * unit
-
-        if (False):
-            v = volume.values.T * config['volume_ratio'] 
-            sz = v.shape                         # (day, stock)
-            bz0 = self.dcount[0]
-            s = np.zeros(sz, dtype=int)          # seq
-            a = v / bz0                          # amount
-            c = np.zeros(sz, dtype=int)          # count
-            t = np.zeros(sz, dtype=int) + bz0    # to
-            u = unit.reshape(sz + (bz0,))        # unit
-            slow_amount = np.stack([i for i in ag(v, a, c, s, t, u)])
-            if np.all(amount[-1,:,:] < v):       # last minitue is min(a, v)
-                raise ValueError('left too much trade amount ')
-            deal_amount = amount.T.reshape(shape) 
 
         if (config['round_amount']):
             tu = config['trade_unit']
