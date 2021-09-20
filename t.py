@@ -29,10 +29,10 @@ class BaseQuote:
 
 def drop_volume_data_absent_in_quote(volume, days):
     vidx = volume.columns.values.astype('datetime64[s]').astype('uint32')
-    _index = dict((d,i) for i,d in enumerate(vidx))
+    _index = dict((d,i) for i,d in enumerate(vidx))                      # loops : days
     mask = np.ones(vidx.size, dtype=bool)
     if (vidx.shape != days.shape):
-        mask[[_index[i] for i in np.setdiff1d(vidx, days)]] = False
+        mask[[_index[i] for i in np.setdiff1d(vidx, days)]] = False      # loops : 1 or less than days
     return mask
     
 class MustelasQuote(BaseQuote):
@@ -50,46 +50,46 @@ class MustelasQuote(BaseQuote):
 
         j = 0
         # for quote query (READONLY)
-        for s, v in quote_df.groupby(level="instrument"):             # loops : stock
+        for s, v in quote_df.groupby(level="instrument"):             # loops : stocks
             self.n[s] = j                                             # stock name index
             self._n[j] = s                                            # stock name reverse index
             d = v.droplevel(level="instrument")
             if not hasattr(self, 'c'):
-                self.c = dict((c,i) for i, c in enumerate(d.columns)) # column(feature) name, loops : feature
+                self.c = dict((c,i) for i, c in enumerate(d.columns)) # column(feature) name, loops : columns
                 self.midx = d.index.values.astype('datetime64[s]')    # minutes time index ts(min)
             self.i[j] = self.midx.astype('uint32')                    # ts index build 
             self.d[s] = d.values.T                                    # feature in numpy
-            self.p[s] = [d[[f]] for f in self.c.keys()]               # feature in pandas (not for map.reduce )
+            self.p[s] = [d[[f]] for f in self.c.keys()]               # feature in pandas (not for map.reduce ), loops : columns
             self.b[s] = np.asarray(np.where(self.d[s][self.c['limit_buy']]==True)[0], dtype=np.int32) # buy limitation
             self.s[s] = np.asarray(np.where(self.d[s][self.c['limit_sell']]==True)[0],dtype=np.int32) # sell limitation
             j += 1
 
         # for indicators map.reduce (WRITE self.m)
         self.indicators = ["ffr", "pa", "pos", "deal_amount", "value", "count"]
-        self.keys = self.n.keys()                                     # cache for get_all_stock
+        self.keys = self.n.keys()                                     # cache get_all_stock
         self.ii = self.i[0]                                           # shared time series index (CRC cache)
         self.days = self.ii.days                                      # valid trading days ts(day)
         self.drange = self.ii.drange                                  # valid trading days pos index
         self.dcount = self.ii.dcount                                  # valid trading days interval
         self.mod = np.max(np.unique(self.dcount))                     # trading minutes of day
         self.mask = np.ones(self.ii.dlen * self.mod, dtype=bool)
-        for i in np.where(self.dcount != self.mod)[0]:
+        for i in np.where(self.dcount != self.mod)[0]:                # loops : 1 or less than days
             b = self.drange[i] + self.dcount[i]
             e = self.drange[i] + self.mod
             self.mask[b:e] = False
         self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
-        pick = [self.c[f] for f in ['$factor', '$close']]             # picks for map.reduce
-        self.q = np.stack([v.astype(float) for v in self.d.values()])[:, pick, :]         
+        pick = [self.c[f] for f in ['$factor', '$close']]             # picks for map.reduce, loops : 2
+        self.q = np.stack([v.astype(float) for v in self.d.values()])[:, pick, :] # loops : columns
 
     def map(self, config):
         stocks = self.q.shape[0]
 
         # Price Chain
-        price = self.q[:,1,:].astype(float)  # (stock, min)
+        price = self.q[:,1,:]                # (stock, min)
         shape = price.shape
         
-        # Order Amount Generation
-        factor = self.q[:,0,:].astype(float) # (stock, min)
+        # Order Unit
+        factor = self.q[:,0,:]               # (stock, min)
         unit = config['trade_unit'] / factor
         for i in range(self.q.shape[0]):     # loops : stocks 
             unit[i, self.s[self._n[i]]] = np.NaN
@@ -104,7 +104,6 @@ class MustelasQuote(BaseQuote):
         useq = np.tile(np.repeat(np.arange(self.mod), self.dcount.size)[self.mask], ushape)
         utrade = np.ceil((utotal - useq * unum) / (ucount - useq))
         deal_amount = np.where(utrade == unum, utrade, unum - 1) * unit
-
         if (config['round_amount']):
             tu = config['trade_unit']
             _deal_amount = ((deal_amount * factor) + 0.1) // tu * tu / factor
@@ -119,20 +118,17 @@ class MustelasQuote(BaseQuote):
 
         # Result Tensor
         locals_ = locals()
-        data = dict((k, locals_[k]) for k in self.indicators)
-        market = [None] * stocks
-        for s in range(shape[0]):            # loops : stocks * indicators
-            market[s] = np.stack([data[k][s] for k in self.indicators])
-        self.m = np.stack(market)            # (stock, indicator, min)
-        self.price = price                   # REALLY UGLY PA CALCULATION BUG
+        data = dict((k, locals_[k]) for k in self.indicators) # loops : indicators
+        self.m = np.stack([data[k] for k in self.indicators]) # loops : indicators
+        self.price = price.sum(axis=0)       # REALLY UGLY PA CALCULATION BUG
         self.dir = config['order_dir']
         return self
 
     def reduce(self):
-        m = self.m.sum(axis=0)                      # aggregate by stock
+        m = self.m.sum(axis=1)                      # aggregate by stock
         d = np.add.reduceat(m, self.drange, axis=1) # aggregate one day
 
-        base_price = np.add.reduceat(self.price.sum(axis=0) / self.m.shape[0], self.drange) / self.dcount
+        base_price = np.add.reduceat(self.price / self.m.shape[0], self.drange) / self.dcount
         d[1] = ((d[4] / d[3]) / base_price - 1) * self.dir
         d[2] = (d[1] > 0).astype(float) 
         d[[0,5]] /= self.dcount                     # avgerage on ffr, count
