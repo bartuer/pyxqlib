@@ -94,16 +94,16 @@ class MustelasQuote(BaseQuote):
         for i in range(self.q.shape[0]):     # loops : stocks 
             unit[i, self.s[self._n[i]]] = np.NaN
 
-        # Amount Chain
+        # Amount Chain, simulate 2 segment linear trading amount split
         drop = drop_volume_data_absent_in_quote(config['volume'], self.days)
-        v = config['volume'].values[:,drop] * config['volume_ratio'] 
-        ushape = tuple([shape[0], 1])
-        utotal = np.repeat(v // unit[:,self.drange], self.dcount, axis=1)
-        ucount = np.repeat(np.tile(self.dcount, ushape), self.dcount, axis=1)
-        unum = np.ceil(utotal / ucount)
-        useq = np.tile(np.repeat(np.arange(self.mod), self.dcount.size)[self.mask], ushape)
-        utrade = np.ceil((utotal - useq * unum) / (ucount - useq))
-        deal_amount = np.where(utrade == unum, utrade, unum - 1) * unit
+        v = config['volume'].values[:,drop] * config['volume_ratio']                              # (stock, day)
+        ushape = tuple([shape[0], 1])                                                             # (stock, 1) 
+        utotal = np.repeat(v // unit[:,self.drange], self.dcount, axis=1)                         # (stock, dcount -> min) 
+        ucount = np.repeat(np.tile(self.dcount, ushape), self.dcount, axis=1)                     # (1 -> stock, dcount -> min)
+        unum = np.ceil(utotal / ucount)                                                           # /((stock, min)) -> (stock, min)
+        useq = np.tile(np.repeat(np.arange(self.mod), self.dcount.size)[self.mask], ushape)       # (1 -> stock, (day * mod) [mask] -> min)
+        utrade = np.ceil((utotal - useq * unum) / (ucount - useq))                                # L1((stock, min)) -> (stock, min)
+        deal_amount = np.where(utrade == unum, utrade, unum - 1) * unit                           # L2((stock, min)) -> (stock, min)
         if (config['round_amount']):
             tu = config['trade_unit']
             _deal_amount = ((deal_amount * factor) + 0.1) // tu * tu / factor
