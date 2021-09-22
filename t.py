@@ -47,6 +47,7 @@ class MustelasQuote(BaseQuote):
         self.b = {}             # buy limit
         self.s = {}             # sell limit
         self._n = {}            # id -> name
+        self._s = []            # sell limit list
 
         j = 0
         # for quote query (READONLY)
@@ -62,6 +63,7 @@ class MustelasQuote(BaseQuote):
             self.p[s] = [d[[f]] for f in self.c.keys()]               # feature in pandas (not for map.reduce ), loops : columns
             self.b[s] = np.asarray(np.where(self.d[s][self.c['limit_buy']]==True)[0], dtype=np.int32) # buy limitation
             self.s[s] = np.asarray(np.where(self.d[s][self.c['limit_sell']]==True)[0],dtype=np.int32) # sell limitation
+            self._s.append(self.s[s])
             j += 1
 
         # for indicators map.reduce (WRITE self.m)
@@ -80,6 +82,7 @@ class MustelasQuote(BaseQuote):
         self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
         pick = [self.c[f] for f in ['$factor', '$close']]             # picks for map.reduce, loops : 2
         self.q = np.stack([v.astype(float) for v in self.d.values()])[:, pick, :] # loops : columns
+        self.m = np.zeros((len(self.indicators), self.q.shape[0], self.q.shape[2]))
 
     def map(self, config):
         stocks = self.q.shape[0]
@@ -91,8 +94,8 @@ class MustelasQuote(BaseQuote):
         # Order Unit
         factor = self.q[:,0,:]               # (stock, min)
         unit = config['trade_unit'] / factor
-        for i in range(self.q.shape[0]):     # loops : stocks 
-            unit[i, self.s[self._n[i]]] = np.NaN
+        for i in range(shape[0]):            # loops : stocks 
+            unit[i, self._s[i]] = np.NaN
 
         # Amount Chain, simulate 2 segment linear trading amount split
         drop = drop_volume_data_absent_in_quote(config['volume'], self.days)
@@ -103,23 +106,24 @@ class MustelasQuote(BaseQuote):
         unum = np.ceil(utotal / ucount)                                                           # /((stock, min)) -> (stock, min)
         useq = np.tile(np.repeat(np.arange(self.mod), self.dcount.size)[self.mask], ushape)       # (1 -> stock, (day * mod) [mask] -> min)
         utrade = np.ceil((utotal - useq * unum) / (ucount - useq))                                # L1((stock, min)) -> (stock, min)
-        deal_amount = np.where(utrade == unum, utrade, unum - 1) * unit                           # L2((stock, min)) -> (stock, min)
+        self.m[3] = np.where(utrade == unum, utrade, unum - 1) * unit                           # L2((stock, min)) -> (stock, min)
         if (config['round_amount']):
             tu = config['trade_unit']
-            _deal_amount = ((deal_amount * factor) + 0.1) // tu * tu / factor
-        value = price * deal_amount
-        ffr = np.ones(shape, dtype=float) / stocks
-        ffr[np.where(deal_amount == np.NaN)] = 0
-        count = np.ones(shape) 
+            self.m[3] = ((self.m[3] * factor) + 0.1) // tu * tu / factor
+        self.m[4] = price * self.m[3]
+        self.m[0] = np.ones(shape, dtype=float) / stocks
+        self.m[0][np.where(self.m[3] == np.NaN)] = 0
+        self.m[5] = np.ones(shape) 
 
         # Price chain
-        pa = np.zeros(shape, dtype=float)    # MAYBE A BUG (link "r2c.org" 2141) (link "r2c.org" 3265)
-        pos = np.zeros(shape, dtype=float)
+        self.m[1] = np.zeros(shape, dtype=float)    # MAYBE A BUG (link "r2c.org" 2141) (link "r2c.org" 3265)
+        self.m[2] = np.zeros(shape, dtype=float)
 
         # Result Tensor
-        locals_ = locals()
-        data = dict((k, locals_[k]) for k in self.indicators) # loops : indicators
-        self.m = np.stack([data[k] for k in self.indicators]) # loops : indicators
+        # locals_ = locals()
+        # data = dict((k, locals_[k]) for k in self.indicators) # loops : indicators
+        # self.m = np.stack([data[k] for k in self.indicators]) # loops : indicators
+
         self.price = price.sum(axis=0)       # REALLY UGLY PA CALCULATION BUG
         self.dir = config['order_dir']
         return self
