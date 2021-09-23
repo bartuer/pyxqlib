@@ -3,6 +3,7 @@
 
 
 import cProfile
+from threadpoolctl import threadpool_limits
 from typing import List, Tuple, Union, Callable, Iterable, Dict
 import pandas as pd
 import numpy as np
@@ -11,10 +12,12 @@ from pyxqlib import Tsidx
 from pandas.testing import assert_index_equal
 import ipdb
 from datetime import datetime
-
+import ctypes
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', 16)
+
+openblas_lib = ctypes.cdll.LoadLibrary('/home/bazhou/local/src/pyxqlib/py37env/lib/python3.7/site-packages/numpy.libs/libopenblasp-r0-9ea19356.3.13.dev.so')
 
 class BaseQuote:
 
@@ -84,6 +87,7 @@ class MustelasQuote(BaseQuote):
         self.q = np.stack([v.astype(float) for v in self.d.values()])[:, pick, :] # loops : columns
         self.m = np.zeros((len(self.indicators), self.q.shape[0], self.q.shape[2]))
 
+    @profile
     def map(self, config):
         stocks = self.q.shape[0]
 
@@ -99,14 +103,14 @@ class MustelasQuote(BaseQuote):
 
         # Amount Chain, simulate 2 segment linear trading amount split
         drop = drop_volume_data_absent_in_quote(config['volume'], self.days)
-        v = config['volume'].values[:,drop] * config['volume_ratio']                              # (stock, day)
-        ushape = tuple([shape[0], 1])                                                             # (stock, 1) 
-        utotal = np.repeat(v // unit[:,self.drange], self.dcount, axis=1)                         # (stock, dcount -> min) 
-        ucount = np.repeat(np.tile(self.dcount, ushape), self.dcount, axis=1)                     # (1 -> stock, dcount -> min)
-        unum = np.ceil(utotal / ucount)                                                           # /((stock, min)) -> (stock, min)
-        useq = np.tile(np.repeat(np.arange(self.mod), self.dcount.size)[self.mask], ushape)       # (1 -> stock, (day * mod) [mask] -> min)
-        utrade = np.ceil((utotal - useq * unum) / (ucount - useq))                                # L1((stock, min)) -> (stock, min)
-        self.m[3] = np.where(utrade == unum, utrade, unum - 1) * unit                           # L2((stock, min)) -> (stock, min)
+        v = config['volume'].values[:,drop] * config['volume_ratio']                                           # (stock, day)
+        ushape = tuple([shape[0], 1])                                                                          # (stock, 1) 
+        utotal = np.repeat(np.floor(v / unit[:,self.drange]), self.dcount, axis=1).astype(int)                 # (stock, dcount -> min) 
+        ucount = np.repeat(np.tile(self.dcount, ushape), self.dcount, axis=1).astype(np.uint8)                 # (1 -> stock, dcount -> min)
+        unum = np.ceil(utotal / ucount).astype(np.uint8)                                                       # /((stock, min)) -> (stock, min)
+        useq = np.tile(np.repeat(np.arange(self.mod), self.dcount.size)[self.mask], ushape).astype(np.uint8)   # (1 -> stock, (day * mod) [mask] -> min)
+        utrade = np.ceil((utotal - useq * unum) / (ucount - useq)).astype(np.uint8)                            # L1((stock, min)) -> (stock, min)
+        self.m[3] = np.where(utrade == unum, utrade, unum - 1) * unit                                          # L2((stock, min)) -> (stock, min)
         if (config['round_amount']):
             tu = config['trade_unit']
             self.m[3] = ((self.m[3] * factor) + 0.1) // tu * tu / factor
@@ -119,16 +123,13 @@ class MustelasQuote(BaseQuote):
         self.m[1] = np.zeros(shape, dtype=float)    # MAYBE A BUG (link "r2c.org" 2141) (link "r2c.org" 3265)
         self.m[2] = np.zeros(shape, dtype=float)
 
-        # Result Tensor
-        # locals_ = locals()
-        # data = dict((k, locals_[k]) for k in self.indicators) # loops : indicators
-        # self.m = np.stack([data[k] for k in self.indicators]) # loops : indicators
-
         self.price = price.sum(axis=0)       # REALLY UGLY PA CALCULATION BUG
         self.dir = config['order_dir']
         return self
 
+    @profile
     def reduce(self):
+        # m = np.einsum('ijk->ik', self.m)
         m = self.m.sum(axis=1)                      # aggregate by stock
         d = np.add.reduceat(m, self.drange, axis=1) # aggregate one day
 
@@ -212,7 +213,9 @@ if True:                        # Calculation API test of MustelasQuote
     }
     pr = cProfile.Profile()
     pr.enable()
-    res = MustelasQuote(f"data/quote_{data_conf}.pkl").map(strategy).reduce()
+    with threadpool_limits(limits=16, user_api='blas'):
+         print(openblas_lib.openblas_get_num_threads())
+         res = MustelasQuote(f"data/quote_{data_conf}.pkl").map(strategy).reduce()
     pr.disable()
     pr.dump_stats(f"data/{datetime.now().strftime('%y-%m-%d_%H:%M')}.prof")
     print(res);
