@@ -5,6 +5,7 @@ from libc.stdint cimport int32_t
 import zlib
 import sys
 import numpy as np
+import pandas as pd
 from libcpp.vector cimport vector
 
 cimport tsidx
@@ -54,7 +55,7 @@ cdef class _Tsidx:
 
     property dcount:
         def __get__(self):
-            return  np.diff(np.append(self.drange, self._size))
+            return  np.diff(np.append(self.drange, self._size)).astype(np.int32)
 
     property dmask:
        def __get__(self):
@@ -140,3 +141,4 @@ cdef class Tsidx:
             idx.id = id
             self.ids[id] = self.sums[hash(idx)]
             del idx
+

@@ -76,7 +76,7 @@ class MustelasQuote(BaseQuote):
         self.days = self.ii.days                                      # valid trading days ts(day)
         self.drange = self.ii.drange                                  # valid trading days pos index
         self.dcount = self.ii.dcount                                  # valid trading days interval
-        self.mod = np.max(np.unique(self.dcount))                     # trading minutes of day
+        self.mod = np.max(np.unique(self.dcount)).astype(np.int32)    # trading minutes of day
         self.mask = np.ones(self.ii.dlen * self.mod, dtype=bool)
         for i in np.where(self.dcount != self.mod)[0]:                # loops : 1 or less than days
             b = self.drange[i] + self.dcount[i]
@@ -84,56 +84,67 @@ class MustelasQuote(BaseQuote):
             self.mask[b:e] = False
         self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
         pick = [self.c[f] for f in ['$factor', '$close']]             # picks for map.reduce, loops : 2
-        self.q = np.stack([v.astype(float) for v in self.d.values()])[:, pick, :] # loops : columns
-        self.m = np.zeros((len(self.indicators), self.q.shape[0], self.q.shape[2]))
+        self.q = np.stack([v.astype(float)
+                           for v in self.d.values()])[:, pick, :]    # loops : columns
+        self.m = np.zeros((len(self.indicators), self.q.shape[0], self.q.shape[2]), dtype=np.float32)
+        self.shape = tuple([self.q.shape[0], self.q.shape[2]])
+        self.ushape = tuple([self.shape[0], 1])
+        self.m[5] += 1
+        self.m[0] /= self.shape[0]
+        self.unit = np.zeros(self.shape, dtype=np.float32)
+        self.unum = np.zeros(self.shape, dtype=np.int32)
+        self.utrade = np.zeros(self.shape, dtype=np.int32)
+        # (1 -> stock, dcount -> min)
+        self.ucount = np.repeat(np.tile(self.dcount, self.ushape), self.dcount, axis=1) 
+        self.useq = np.tile(np.repeat(np.arange(self.mod, dtype=np.int32), self.dcount.size)[self.mask], self.ushape)   # (1 -> stock, (day * mod) [mask] -> min)
 
     @profile
     def map(self, config):
-        stocks = self.q.shape[0]
+        shape = self.shape
+        ushape = self.ushape
+        stocks = self.shape[0]
 
         # Price Chain
         price = self.q[:,1,:]                # (stock, min)
-        shape = price.shape
         
         # Order Unit
         factor = self.q[:,0,:]               # (stock, min)
-        unit = config['trade_unit'] / factor
+        np.true_divide(config['trade_unit'], factor, out=self.unit, dtype=np.float32)
+        limit = False
         for i in range(shape[0]):            # loops : stocks 
-            unit[i, self._s[i]] = np.NaN
+            if (len(self._s[i]) > 0):
+                limit = True
+                self.unit[i, self._s[i]] = np.NaN
 
         # Amount Chain, simulate 2 segment linear trading amount split
-        drop = drop_volume_data_absent_in_quote(config['volume'], self.days)
-        v = config['volume'].values[:,drop] * config['volume_ratio']                                           # (stock, day)
-        ushape = tuple([shape[0], 1])                                                                          # (stock, 1) 
-        utotal = np.repeat(np.floor(v / unit[:,self.drange]), self.dcount, axis=1).astype(int)                 # (stock, dcount -> min) 
-        ucount = np.repeat(np.tile(self.dcount, ushape), self.dcount, axis=1).astype(np.uint8)                 # (1 -> stock, dcount -> min)
-        unum = np.ceil(utotal / ucount).astype(np.uint8)                                                       # /((stock, min)) -> (stock, min)
-        useq = np.tile(np.repeat(np.arange(self.mod), self.dcount.size)[self.mask], ushape).astype(np.uint8)   # (1 -> stock, (day * mod) [mask] -> min)
-        utrade = np.ceil((utotal - useq * unum) / (ucount - useq)).astype(np.uint8)                            # L1((stock, min)) -> (stock, min)
-        self.m[3] = np.where(utrade == unum, utrade, unum - 1) * unit                                          # L2((stock, min)) -> (stock, min)
+        vidx = config['volume'].columns.values.astype('datetime64[s]').astype('uint32')
+        _index = dict((d,i) for i,d in enumerate(vidx))                          # loops : days
+        drop = np.ones(vidx.size, dtype=bool)
+        if (vidx.shape != self.days.shape):
+            drop[[_index[i] for i in np.setdiff1d(vidx, self.days)]] = False      # loops : 1 or less than days
+        v = config['volume'].values[:,drop] * config['volume_ratio']                                                                       # (stock, day)
+        utotal = np.repeat(np.divide(v, self.unit[:,self.drange], dtype=np.float32).astype(np.int32), self.dcount, axis=1)                 # (stock, dcount -> min) 
+        np.add(np.divide(utotal, self.ucount, dtype=np.float32).astype(np.int32), 1, out=self.unum)                                        # /((stock, min)) -> (stock, min)
+        np.add(np.divide(utotal - self.useq * self.unum, self.ucount - self.useq, dtype=np.float32).astype(np.int32), 1, out=self.utrade)  # L1((stock, min)) -> (stock, min)
+        np.multiply(np.where(self.utrade == self.unum, self.utrade, self.unum - 1), self.unit, out=self.m[3], dtype=np.float32)            # L2((stock, min)) -> (stock, min)
         if (config['round_amount']):
             tu = config['trade_unit']
             self.m[3] = ((self.m[3] * factor) + 0.1) // tu * tu / factor
-        self.m[4] = price * self.m[3]
-        self.m[0] = np.ones(shape, dtype=float) / stocks
-        self.m[0][np.where(self.m[3] == np.NaN)] = 0
-        self.m[5] = np.ones(shape) 
-
-        # Price chain
-        self.m[1] = np.zeros(shape, dtype=float)    # MAYBE A BUG (link "r2c.org" 2141) (link "r2c.org" 3265)
-        self.m[2] = np.zeros(shape, dtype=float)
+        np.multiply(price,  self.m[3], out=self.m[4], dtype=np.float32)
+        if limit:
+            self.m[0][np.where(self.m[3] == np.NaN)] = 0
 
         self.price = price.sum(axis=0)       # REALLY UGLY PA CALCULATION BUG
         self.dir = config['order_dir']
         return self
 
     @profile
-    def reduce(self):
-        # m = np.einsum('ijk->ik', self.m)
-        m = self.m.sum(axis=1)                      # aggregate by stock
-        d = np.add.reduceat(m, self.drange, axis=1) # aggregate one day
+    def reduce(self):           
+        # m = np.einsum('ijk->ik', self.m, dtype=np.float32) 
+        m = self.m.sum(axis=1, dtype=np.float32)                      # aggregate by stock
+        d = np.add.reduceat(m, self.drange, axis=1, dtype=np.float32) # aggregate one day
 
-        base_price = np.add.reduceat(self.price / self.m.shape[0], self.drange) / self.dcount
+        base_price = np.add.reduceat(self.price / self.m.shape[0], self.drange, dtype=np.float32) / self.dcount
         d[1] = ((d[4] / d[3]) / base_price - 1) * self.dir
         d[2] = (d[1] > 0).astype(float) 
         d[[0,5]] /= self.dcount                     # avgerage on ffr, count
