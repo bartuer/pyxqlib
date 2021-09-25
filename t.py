@@ -77,7 +77,7 @@ class MustelasQuote(BaseQuote):
         self.days = self.ii.days                                      # valid trading days ts(day)
         self.drange = self.ii.drange                                  # valid trading days pos index
         self.dcount = self.ii.dcount                                  # valid trading days interval
-        self.mod = np.max(np.unique(self.dcount)).astype(np.int32)    # trading minutes of day
+        self.mod = np.max(np.unique(self.dcount)).astype(np.int16)    # trading minutes of day
         self.mask = np.ones(self.ii.dlen * self.mod, dtype=bool)
         for i in np.where(self.dcount != self.mod)[0]:                # loops : 1 or less than days
             b = self.drange[i] + self.dcount[i]
@@ -96,10 +96,10 @@ class MustelasQuote(BaseQuote):
         self.unum = np.zeros(self.shape, dtype=np.int16)
         self.utrade = np.zeros(self.shape, dtype=np.int16)
         # (1 -> stock, dcount -> min)
-        self.ucount = np.repeat(np.tile(self.dcount, self.ushape), self.dcount, axis=1) 
-        self.useq = np.tile(np.repeat(np.arange(self.mod, dtype=np.int32), self.dcount.size)[self.mask], self.ushape)   # (1 -> stock, (day * mod) [mask] -> min)
+        self.ucount = np.repeat(np.tile(self.dcount.astype(np.int16), self.ushape), self.dcount, axis=1) 
+        self.useq = np.tile(np.repeat(np.arange(self.mod, dtype=np.int16), self.dcount.size)[self.mask], self.ushape)   # (1 -> stock, (day * mod) [mask] -> min)
         self.c_s = self.ucount - self.useq
-        self.amount = np.zeros(self.shape, dtype=np.int32)
+        self.amount = np.zeros(self.shape, dtype=np.int16)
 
     @profile
     def map(self, config):
@@ -120,11 +120,11 @@ class MustelasQuote(BaseQuote):
                 self.unit[i, self._s[i]] = np.NaN
 
         # Amount Chain, simulate 2 segment linear trading amount split
-        vidx = config['volume'].columns.values.astype('datetime64[s]').astype('uint32')
+        vidx = config['volume'].columns.values.astype('datetime64[s]').astype('datetime64[D]')
         _index = dict((d,i) for i,d in enumerate(vidx))                          # loops : days
         drop = np.ones(vidx.size, dtype=bool)
-        if (vidx.shape != self.days.shape):
-            drop[[_index[i] for i in np.setdiff1d(vidx, self.days)]] = False     # loops : 1 or less than days
+        if (vidx.shape != self.didx.shape):
+            drop[[_index[i] for i in np.setdiff1d(vidx, self.didx)]] = False     # loops : 1 or less than days
         v = config['volume'].values[:,drop] * config['volume_ratio']                                                           # int   (stock, day)
         utotal = np.repeat(np.divide(v, self.unit[:,self.drange], dtype=np.float32).astype(np.int16), self.dcount, axis=1)     # int   (stock, dcount -> min) 
         np.add(np.divide(utotal, self.ucount, dtype=np.float32), 1, casting='unsafe', out=self.unum)                           # int   /((stock, min)) -> (stock, min)
