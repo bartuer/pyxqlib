@@ -13,11 +13,12 @@ from pandas.testing import assert_index_equal
 import ipdb
 from datetime import datetime
 import ctypes
+import numexpr as ne
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', 16)
 
-openblas_lib = ctypes.cdll.LoadLibrary('/home/bazhou/local/src/pyxqlib/py37env/lib/python3.7/site-packages/numpy.libs/libopenblasp-r0-9ea19356.3.13.dev.so')
+openblas_lib = ctypes.cdll.LoadLibrary('/home/bazhou/local/src/pyxqlib/py37env/lib/python3.7/site-packages/numpy.libs/libopenblasp-r0-2d23e62b.3.17.so')
 
 class BaseQuote:
 
@@ -92,11 +93,13 @@ class MustelasQuote(BaseQuote):
         self.m[5] += 1
         self.m[0] /= self.shape[0]
         self.unit = np.zeros(self.shape, dtype=np.float32)
-        self.unum = np.zeros(self.shape, dtype=np.int32)
-        self.utrade = np.zeros(self.shape, dtype=np.int32)
+        self.unum = np.zeros(self.shape, dtype=np.int16)
+        self.utrade = np.zeros(self.shape, dtype=np.int16)
         # (1 -> stock, dcount -> min)
         self.ucount = np.repeat(np.tile(self.dcount, self.ushape), self.dcount, axis=1) 
         self.useq = np.tile(np.repeat(np.arange(self.mod, dtype=np.int32), self.dcount.size)[self.mask], self.ushape)   # (1 -> stock, (day * mod) [mask] -> min)
+        self.c_s = self.ucount - self.useq
+        self.amount = np.zeros(self.shape, dtype=np.int32)
 
     @profile
     def map(self, config):
@@ -109,7 +112,7 @@ class MustelasQuote(BaseQuote):
         
         # Order Unit
         factor = self.q[:,0,:]               # (stock, min)
-        np.true_divide(config['trade_unit'], factor, out=self.unit, dtype=np.float32)
+        np.true_divide(config['trade_unit'], factor, dtype=np.float32, out=self.unit)
         limit = False
         for i in range(shape[0]):            # loops : stocks 
             if (len(self._s[i]) > 0):
@@ -121,26 +124,26 @@ class MustelasQuote(BaseQuote):
         _index = dict((d,i) for i,d in enumerate(vidx))                          # loops : days
         drop = np.ones(vidx.size, dtype=bool)
         if (vidx.shape != self.days.shape):
-            drop[[_index[i] for i in np.setdiff1d(vidx, self.days)]] = False      # loops : 1 or less than days
-        v = config['volume'].values[:,drop] * config['volume_ratio']                                                                       # (stock, day)
-        utotal = np.repeat(np.divide(v, self.unit[:,self.drange], dtype=np.float32).astype(np.int32), self.dcount, axis=1)                 # (stock, dcount -> min) 
-        np.add(np.divide(utotal, self.ucount, dtype=np.float32).astype(np.int32), 1, out=self.unum)                                        # /((stock, min)) -> (stock, min)
-        np.add(np.divide(utotal - self.useq * self.unum, self.ucount - self.useq, dtype=np.float32).astype(np.int32), 1, out=self.utrade)  # L1((stock, min)) -> (stock, min)
-        np.multiply(np.where(self.utrade == self.unum, self.utrade, self.unum - 1), self.unit, out=self.m[3], dtype=np.float32)            # L2((stock, min)) -> (stock, min)
+            drop[[_index[i] for i in np.setdiff1d(vidx, self.days)]] = False     # loops : 1 or less than days
+        v = config['volume'].values[:,drop] * config['volume_ratio']                                                           # int   (stock, day)
+        utotal = np.repeat(np.divide(v, self.unit[:,self.drange], dtype=np.float32).astype(np.int16), self.dcount, axis=1)     # int   (stock, dcount -> min) 
+        np.add(np.divide(utotal, self.ucount, dtype=np.float32), 1, casting='unsafe', out=self.unum)                           # int   /((stock, min)) -> (stock, min)
+        np.add(np.divide(utotal - self.useq * self.unum, self.c_s, dtype=np.float32), 1, casting='unsafe', out=self.utrade)    # int   L1((stock, min)) -> (stock, min)
+        self.amount = np.where(self.utrade == self.unum, self.utrade, self.unum - 1)                                           # int   where((stock, min)) -> (stock, min)
+        np.multiply(self.amount, self.unit, dtype=np.float32, out=self.m[3])                                                   # float L2((stock, min)) -> (stock, min)
         if (config['round_amount']):
             tu = config['trade_unit']
             self.m[3] = ((self.m[3] * factor) + 0.1) // tu * tu / factor
-        np.multiply(price,  self.m[3], out=self.m[4], dtype=np.float32)
+        np.multiply(price, self.m[3], dtype=np.float32, out=self.m[4])
         if limit:
             self.m[0][np.where(self.m[3] == np.NaN)] = 0
 
-        self.price = price.sum(axis=0)       # REALLY UGLY PA CALCULATION BUG
+        self.price = price.sum(axis=0, dtype=np.float32)       # REALLY UGLY PA CALCULATION BUG
         self.dir = config['order_dir']
         return self
 
     @profile
-    def reduce(self):           
-        # m = np.einsum('ijk->ik', self.m, dtype=np.float32) 
+    def reduce(self):
         m = self.m.sum(axis=1, dtype=np.float32)                      # aggregate by stock
         d = np.add.reduceat(m, self.drange, axis=1, dtype=np.float32) # aggregate one day
 
@@ -224,7 +227,7 @@ if True:                        # Calculation API test of MustelasQuote
     }
     pr = cProfile.Profile()
     pr.enable()
-    with threadpool_limits(limits=16, user_api='blas'):
+    with threadpool_limits(limits=1, user_api='blas'):
          print(openblas_lib.openblas_get_num_threads())
          res = MustelasQuote(f"data/quote_{data_conf}.pkl").map(strategy).reduce()
     pr.disable()
