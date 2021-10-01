@@ -1,7 +1,9 @@
 # cython: profile=False, embedsignature=True, language_level=3
 
 from libc.stdint cimport uint32_t
+from libc.stdint cimport uint8_t
 from libc.stdint cimport int32_t
+from libc.stdint cimport int64_t
 import zlib
 import sys
 import numpy as np
@@ -9,6 +11,7 @@ import pandas as pd
 from libcpp.vector cimport vector
 
 cimport tsidx
+cimport numpy as np
 
 from cython import boundscheck, wraparound
 
@@ -142,3 +145,147 @@ cdef class Tsidx:
             self.ids[id] = self.sums[hash(idx)]
             del idx
 
+
+cdef class MustelasQuote:
+    cdef _Tsidx i
+    cdef dict d
+    cdef dict c
+    cdef list _s
+    cdef list indicators 
+    cdef tuple shape
+    cdef tuple ushape
+    cdef np.uint32_t mod
+    cdef np.uint32_t[:] midx
+    cdef np.uint32_t[:] didx
+    cdef np.uint32_t[:] drange
+    cdef np.uint32_t[:] dcount
+    cdef np.uint8_t[:] mask
+    cdef np.float32_t[:,:] unit
+    cdef np.int16_t[:,:] unum
+    cdef np.int16_t[:,:] useq
+    cdef np.int16_t[:,:] ucount
+    cdef np.int16_t[:,:] utrade
+    cdef np.int16_t[:,:] c_s
+    cdef np.int16_t[:,:] amount
+    cdef np.float32_t[:,:,:] q
+    cdef np.float32_t[:,:,:] m
+    cdef np.float32_t[:] price
+    cdef int dir
+
+    @boundscheck(False)
+    @wraparound(False)
+    def __init__(self, df):
+        cdef int j = 0
+        for s, v in df.groupby(level="instrument"):             # loops : stocks
+            d = v.droplevel(level="instrument")
+            if (j == 0):
+                self.d = dict()
+                self._s = list()
+                self.c = dict((c,i) for i, c in enumerate(d.columns))
+                self.midx = d.index.values.astype('datetime64[s]').astype('uint32')    # minutes time index ts(min)
+                self.i = _Tsidx.__new__(_Tsidx, [])
+                self.i.load(self.midx)
+            self.d[s] = d.values.T                                    # feature in numpy
+            self._s.append(np.asarray(np.where(self.d[s][self.c['limit_sell']]==True)[0],dtype=np.int32))
+            j += 1
+
+        self.indicators = ["ffr", "pa", "pos", "deal_amount", "value", "count"]
+        self.didx = self.i.days.astype('datetime64[s]').astype('datetime64[D]').astype('uint32')
+        self.drange = self.i.drange
+        self.dcount = self.i.dcount.astype(np.uint32)
+        self.mod = np.max(np.unique(self.dcount)).astype(np.uint32)
+        self.mask = np.ones(self.i.dlen * self.mod, dtype=np.uint8)
+        cdef int i
+        for i in np.where(np.not_equal(self.dcount, self.mod))[0]:
+            b = self.drange[i] + self.dcount[i]
+            e = self.drange[i] + self.mod
+            self.mask[b:e] = 0
+
+        pick = [self.c[f] for f in ['$factor', '$close']]             # picks for map.reduce, loops : 2
+        self.q = np.stack([v.astype(np.float32)
+                           for v in self.d.values()])[:, pick, :]    # loops : columns
+
+        self.m = np.zeros((len(self.indicators), self.q.shape[0], self.q.shape[2]), dtype=np.float32)
+        self.shape = tuple([self.q.shape[0], self.q.shape[2]])
+        self.ushape = tuple([self.shape[0], 1])
+        np.add(np.asarray(self.m[5]), np.ones(self.shape), out=np.asarray(self.m[5]))
+        np.true_divide(np.asarray(self.m[0]), self.shape[0], out=np.asarray(self.m[0]))
+        self.unit = np.zeros(self.shape, dtype=np.float32)
+        self.unum = np.zeros(self.shape, dtype=np.int16)
+        self.utrade = np.zeros(self.shape, dtype=np.int16)
+        self.ucount = np.repeat(np.tile(np.asarray(self.dcount).astype(np.int16), self.ushape), self.dcount, axis=1) 
+        self.useq = np.tile(np.repeat(np.arange(self.mod, dtype=np.int16), self.dcount.size)[np.asarray(self.mask, dtype=bool)], self.ushape)   
+        self.c_s = np.subtract(self.ucount, self.useq)
+        self.amount = np.zeros(self.shape, dtype=np.int16)
+
+    @boundscheck(False)
+    @wraparound(False)
+    cdef inline _map(self, config):
+        shape = self.shape
+        ushape = self.ushape
+        stocks = self.shape[0]
+
+        # Price Chain
+        price = np.asarray(self.q[:,1,:])               # (stock, min)
+        
+        # Order Unit
+        factor = np.asarray(self.q[:,0,:])              # (stock, min)
+        np.true_divide(config['trade_unit'], factor, dtype=np.float32, out=np.asarray(self.unit))
+        limit = False
+        cdef int i
+        for i in range(shape[0]):            # loops : stocks 
+            if (len(self._s[i]) > 0):
+                limit = True
+                self.unit[i, self._s[i]] = np.NaN
+
+        # Amount Chain, simulate 2 segment linear trading amount split
+        vidx = config['volume'].columns.values.astype('datetime64[s]').astype('datetime64[D]').astype('uint32')
+        _index = dict((d,i) for i,d in enumerate(vidx))                          # loops : days
+        drop = np.ones(vidx.size, dtype=bool)
+        m = np.asarray(self.m)
+        if (vidx.shape != self.didx.shape):
+            drop[[_index[i] for i in np.setdiff1d(vidx, self.didx)]] = False     # loops : 1 or less than days
+        v = config['volume'].values[:,drop] * config['volume_ratio']                                                # int   (stock, day)
+        utotal = np.repeat(np.divide(v, np.asarray(self.unit)[:,np.asarray(self.drange)],
+                                     dtype=np.float32).astype(np.int16), self.dcount, axis=1)                       # int   (stock, dcount -> min) 
+        np.add(np.divide(utotal, self.ucount, dtype=np.float32), 1, casting='unsafe', out=np.asarray(self.unum))    # int   /((stock, min)) -> (stock, min)
+        np.add(np.divide(np.subtract(utotal, np.multiply(self.useq, self.unum)), self.c_s, dtype=np.float32),
+               1, casting='unsafe', out=np.asarray(self.utrade))                                                    # int   L1((stock, min)) -> (stock, min)
+        self.amount = np.where(np.equal(self.utrade, self.unum), self.utrade, np.subtract(self.unum, 1))            # int   where((stock, min)) -> (stock, min)
+        np.multiply(self.amount, self.unit, dtype=np.float32, out=m[3])                                             # float L2((stock, min)) -> (stock, min)
+        if (config['round_amount']):
+            tu = config['trade_unit']
+            m[3] = ((m[3] * factor) + 0.1) // tu * tu / factor
+        np.multiply(price, m[3], dtype=np.float32, out=m[4])
+        if limit:
+            m[0][np.where(np.equal(m[3], np.NaN))] = 0
+
+        self.price = np.sum(price, axis=0, dtype=np.float32)       # REALLY UGLY PA CALCULATION BUG
+        self.dir = config['order_dir']
+        return self
+
+    @boundscheck(False)
+    @wraparound(False)
+    cdef inline _reduce(self):
+        m = np.sum(self.m, axis=1, dtype=np.float32)                     # aggregate by stock
+        d = np.add.reduceat(m, self.drange, axis=1, dtype=np.float32)    # aggregate one day
+
+        base_price = np.true_divide(
+            np.add.reduceat(np.true_divide(self.price, self.m.shape[0]), self.drange, dtype=np.float32),
+            self.dcount)
+        
+        d[1] = ((d[4] / d[3]) / base_price - 1) * self.dir
+        d[2] = (d[1] > 0).astype(np.float32) 
+        d[[0, 5]] = np.true_divide(d[[0,5]],  self.dcount)                 # avgerage on ffr, count
+
+        return (np.asarray(self.didx).astype('datetime64[D]'),
+                np.asarray(self.midx).astype('datetime64[s]'),
+                d,
+                m,
+                self.indicators)
+
+    def map(self, config):
+        return self._map(config)
+
+    def reduce(self):
+        return self._reduce()

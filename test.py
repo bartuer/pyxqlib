@@ -85,7 +85,7 @@ class MustelasQuote(BaseQuote):
         self.didx = self.days.astype('datetime64[s]').astype('datetime64[D]')
         pick = [self.c[f] for f in ['$factor', '$close']]             # picks for map.reduce, loops : 2
         self.q = np.stack([v.astype(float)
-                           for v in self.d.values()])[:, pick, :]     # loops : columns
+                           for v in self.d.values()])[:, pick, :]    # loops : columns
         self.m = np.zeros((len(self.indicators), self.q.shape[0], self.q.shape[2]), dtype=np.float32)
         self.shape = tuple([self.q.shape[0], self.q.shape[2]])
         self.ushape = tuple([self.shape[0], 1])
@@ -100,12 +100,15 @@ class MustelasQuote(BaseQuote):
         self.c_s = self.ucount - self.useq
         self.amount = np.zeros(self.shape, dtype=np.int16)
 
+    @profile
     def map(self, config):
         shape = self.shape
         ushape = self.ushape
         stocks = self.shape[0]
+
         # Price Chain
         price = self.q[:,1,:]                # (stock, min)
+        
         # Order Unit
         factor = self.q[:,0,:]               # (stock, min)
         np.true_divide(config['trade_unit'], factor, dtype=np.float32, out=self.unit)
@@ -114,18 +117,19 @@ class MustelasQuote(BaseQuote):
             if (len(self._s[i]) > 0):
                 limit = True
                 self.unit[i, self._s[i]] = np.NaN
+
         # Amount Chain, simulate 2 segment linear trading amount split
         vidx = config['volume'].columns.values.astype('datetime64[s]').astype('datetime64[D]')
         _index = dict((d,i) for i,d in enumerate(vidx))                          # loops : days
         drop = np.ones(vidx.size, dtype=bool)
         if (vidx.shape != self.didx.shape):
             drop[[_index[i] for i in np.setdiff1d(vidx, self.didx)]] = False     # loops : 1 or less than days
-        v = config['volume'].values[:,drop] * config['volume_ratio']                                                           # int   (stock, day)
-        utotal = np.repeat(np.divide(v, self.unit[:,self.drange], dtype=np.float32).astype(np.int16), self.dcount, axis=1)     # int   (stock, dcount -> min) 
-        np.add(np.divide(utotal, self.ucount, dtype=np.float32), 1, casting='unsafe', out=self.unum)                           # int   /((stock, min)) -> (stock, min)
-        np.add(np.divide(utotal - self.useq * self.unum, self.c_s, dtype=np.float32), 1, casting='unsafe', out=self.utrade)    # int   L1((stock, min)) -> (stock, min)
-        self.amount = np.where(self.utrade == self.unum, self.utrade, self.unum - 1)                                           # int   where((stock, min)) -> (stock, min)
-        np.multiply(self.amount, self.unit, dtype=np.float32, out=self.m[3])                                                   # float L2((stock, min)) -> (stock, min)
+        v = config['volume'].values[:,drop] * config['volume_ratio']                                          
+        utotal = np.repeat(np.divide(v, self.unit[:,self.drange], dtype=np.float32).astype(np.int16), self.dcount, axis=1)
+        np.add(np.divide(utotal, self.ucount, dtype=np.float32), 1, casting='unsafe', out=self.unum)
+        np.add(np.divide(utotal - self.useq * self.unum, self.c_s, dtype=np.float32), 1, casting='unsafe', out=self.utrade)
+        self.amount = np.where(self.utrade == self.unum, self.utrade, self.unum - 1)
+        np.multiply(self.amount, self.unit, dtype=np.float32, out=self.m[3])
         if (config['round_amount']):
             tu = config['trade_unit']
             self.m[3] = ((self.m[3] * factor) + 0.1) // tu * tu / factor
@@ -137,6 +141,7 @@ class MustelasQuote(BaseQuote):
         self.dir = config['order_dir']
         return self
 
+    @profile
     def reduce(self):
         m = self.m.sum(axis=1, dtype=np.float32)                      # aggregate by stock
         d = np.add.reduceat(m, self.drange, axis=1, dtype=np.float32) # aggregate one day
@@ -219,18 +224,13 @@ if True:                        # Calculation API test of MustelasQuote
         'start_time':'',        # already in calendar
         'end_time':''           # ...
     }
-    hp = MustelasQuote_(pd.read_pickle(f"data/quote_{data_conf}.pkl"))
+    mustelas = MustelasQuote(f"data/quote_{data_conf}.pkl")
     pr = cProfile.Profile()
     pr.enable()
-    # res = MustelasQuote(f"data/quote_{data_conf}.pkl").map(strategy).reduce()
-    di, mi, d, m, i = hp.map(strategy).reduce()
+    res = mustelas.map(strategy).reduce()
     pr.disable()
-    pr.dump_stats(f"data/{datetime.now().strftime('%y-%m-%d_%H:%M')}.prof")
-    print({"1day"     : pd.DataFrame(d.T, columns=i, index=pd.Index(di)),
-           "1minute"  : pd.DataFrame(m.T, columns=i, index=pd.Index(mi)),
-    });
-    pd.DataFrame(m.T, columns=i, index=pd.Index(mi)).to_pickle(f"data/min_indicators_{data_conf}.pkl")
-    pd.DataFrame(d.T, columns=i, index=pd.Index(di)).to_pickle(f"data/day_indicators_{data_conf}.pkl")
+    pr.dump_stats(f"data/demo.prof")
+    print(res);
 else:                           # Query API test of MustelasQuote
     q = MustelasQuote(f"data/quote_df.pkl")
     print(f"\
