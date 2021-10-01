@@ -1,0 +1,110 @@
+   Ordered by: cumulative time
+
+Function                                                                 called...
+                                                                             ncalls  tottime  cumtime
+{method 'map' of 'pyxqlib.MustelasQuote' objects}                        ->       1    0.000    0.002  <__array_function__ internals>:2(repeat)
+                                                                                  1    0.000    0.000  <__array_function__ internals>:2(setdiff1d)
+                                                                                  1    0.000    0.000  <__array_function__ internals>:2(sum)
+                                                                                  1    0.000    0.001  <__array_function__ internals>:2(where)
+                                                                                  1    0.000    0.000  datetimelike.py:110(values)
+                                                                                  1    0.000    0.000  frame.py:10590(values)
+                                                                                  1    0.000    0.000  numeric.py:149(ones)
+{built-in method numpy.core._multiarray_umath.implement_array_function}  ->       2    0.000    0.000  arraysetops.py:138(unique)
+                                                                                  1    0.000    0.000  arraysetops.py:519(in1d)
+                                                                                  1    0.000    0.000  arraysetops.py:784(setdiff1d)
+                                                                                  1    0.000    0.002  fromnumeric.py:436(repeat)
+                                                                                  2    0.000    0.001  fromnumeric.py:2123(sum)
+<__array_function__ internals>:2(repeat)                                 ->       1    0.000    0.000  fromnumeric.py:432(_repeat_dispatcher)
+                                                                                  1    0.000    0.002  {built-in method numpy.core._multiarray_umath.implement_array_function}
+fromnumeric.py:436(repeat)                                               ->       1    0.000    0.002  fromnumeric.py:51(_wrapfunc)
+fromnumeric.py:51(_wrapfunc)                                             ->       1    0.000    0.000  {built-in method builtins.getattr}
+                                                                                  1    0.002    0.002  {method 'repeat' of 'numpy.ndarray' objects}
+{method 'repeat' of 'numpy.ndarray' objects}                             -> 
+{method 'reduce' of 'pyxqlib.MustelasQuote' objects}                     ->       1    0.000    0.001  <__array_function__ internals>:2(sum)
+<__array_function__ internals>:2(sum)                                    ->       2    0.000    0.000  fromnumeric.py:2118(_sum_dispatcher)
+                                                                                  2    0.000    0.001  {built-in method numpy.core._multiarray_umath.implement_array_function}
+fromnumeric.py:2123(sum)                                                 ->       2    0.000    0.001  fromnumeric.py:69(_wrapreduction)
+                                                                                  2    0.000    0.000  {built-in method builtins.isinstance}
+fromnumeric.py:69(_wrapreduction)                                        ->       2    0.000    0.000  fromnumeric.py:70(<dictcomp>)
+                                                                                  1    0.000    0.000  {built-in method builtins.getattr}
+                                                                                  2    0.000    0.000  {method 'items' of 'dict' objects}
+                                                                                  2    0.001    0.001  {method 'reduce' of 'numpy.ufunc' objects}
+{method 'reduce' of 'numpy.ufunc' objects}                               -> 
+<__array_function__ internals>:2(where)                                  ->       1    0.000    0.000  multiarray.py:341(where)
+                                                                                  1    0.001    0.001  {built-in method numpy.core._multiarray_umath.implement_array_function}
+<__array_function__ internals>:2(setdiff1d)                              ->       1    0.000    0.000  arraysetops.py:780(_setdiff1d_dispatcher)
+                                                                                  1    0.000    0.000  {built-in method numpy.core._multiarray_umath.implement_array_function}
+arraysetops.py:784(setdiff1d)                                            ->       1    0.000    0.000  <__array_function__ internals>:2(in1d)
+                                                                                  2    0.000    0.000  <__array_function__ internals>:2(unique)
+<__array_function__ internals>:2(unique)                                 ->       2    0.000    0.000  arraysetops.py:133(_unique_dispatcher)
+                                                                                  2    0.000    0.000  {built-in method numpy.core._multiarray_umath.implement_array_function}
+frame.py:10590(values)                                                   ->       1    0.000    0.000  generic.py:5558(_consolidate_inplace)
+                                                                                  1    0.000    0.000  managers.py:1411(as_array)
+<__array_function__ internals>:2(in1d)                                   ->       1    0.000    0.000  arraysetops.py:515(_in1d_dispatcher)
+                                                                                  1    0.000    0.000  {built-in method numpy.core._multiarray_umath.implement_array_function}
+arraysetops.py:138(unique)                                               ->       2    0.000    0.000  arraysetops.py:125(_unpack_tuple)
+                                                                                  2    0.000    0.000  arraysetops.py:320(_unique1d)
+                                                                                  2    0.000    0.000  {built-in method numpy.asanyarray}
+arraysetops.py:519(in1d)                                                 ->       2    0.000    0.000  <__array_function__ internals>:2(concatenate)
+                                                                                  3    0.000    0.000  {built-in method builtins.len}
+                                                                                  2    0.000    0.000  {built-in method numpy.asarray}
+                                                                                  1    0.000    0.000  {built-in method numpy.empty}
+                                                                                  1    0.000    0.000  {method 'argsort' of 'numpy.ndarray' objects}
+                                                                                  2    0.000    0.000  {method 'ravel' of 'numpy.ndarray' objects}
+arraysetops.py:320(_unique1d)                                            ->       2    0.000    0.000  {built-in method numpy.asanyarray}
+                                                                                  2    0.000    0.000  {built-in method numpy.empty}
+                                                                                  2    0.000    0.000  {method 'flatten' of 'numpy.ndarray' objects}
+                                                                                  2    0.000    0.000  {method 'sort' of 'numpy.ndarray' objects}
+generic.py:5558(_consolidate_inplace)                                    ->       1    0.000    0.000  generic.py:5544(_protect_consolidate)
+generic.py:5544(_protect_consolidate)                                    ->       1    0.000    0.000  generic.py:5562(f)
+                                                                                  1    0.000    0.000  {built-in method builtins.isinstance}
+                                                                                  2    0.000    0.000  {built-in method builtins.len}
+generic.py:5562(f)                                                       ->       1    0.000    0.000  generic.py:5489(__setattr__)
+                                                                                  1    0.000    0.000  managers.py:606(consolidate)
+managers.py:606(consolidate)                                             ->       1    0.000    0.000  managers.py:468(is_consolidated)
+managers.py:468(is_consolidated)                                         ->       1    0.000    0.000  managers.py:476(_consolidate_check)
+managers.py:476(_consolidate_check)                                      ->       1    0.000    0.000  managers.py:477(<listcomp>)
+                                                                                  2    0.000    0.000  {built-in method builtins.len}
+numeric.py:149(ones)                                                     ->       1    0.000    0.000  <__array_function__ internals>:2(copyto)
+                                                                                  1    0.000    0.000  {built-in method numpy.empty}
+managers.py:1411(as_array)                                               ->       1    0.000    0.000  blocks.py:221(get_values)
+                                                                                  1    0.000    0.000  managers.py:219(is_single_block)
+                                                                                  1    0.000    0.000  {built-in method builtins.len}
+                                                                                  1    0.000    0.000  {built-in method numpy.asarray}
+                                                                                  1    0.000    0.000  {method 'transpose' of 'numpy.ndarray' objects}
+{method 'argsort' of 'numpy.ndarray' objects}                            -> 
+<__array_function__ internals>:2(concatenate)                            ->       2    0.000    0.000  multiarray.py:148(concatenate)
+                                                                                  2    0.000    0.000  {built-in method numpy.core._multiarray_umath.implement_array_function}
+<__array_function__ internals>:2(copyto)                                 ->       1    0.000    0.000  multiarray.py:1071(copyto)
+                                                                                  1    0.000    0.000  {built-in method numpy.core._multiarray_umath.implement_array_function}
+managers.py:477(<listcomp>)                                              ->       1    0.000    0.000  blocks.py:344(dtype)
+{built-in method numpy.empty}                                            -> 
+{built-in method builtins.isinstance}                                    -> 
+{method 'sort' of 'numpy.ndarray' objects}                               -> 
+arraysetops.py:125(_unpack_tuple)                                        ->       2    0.000    0.000  {built-in method builtins.len}
+{method 'flatten' of 'numpy.ndarray' objects}                            -> 
+generic.py:5489(__setattr__)                                             -> 
+datetimelike.py:110(values)                                              -> 
+fromnumeric.py:70(<dictcomp>)                                            -> 
+blocks.py:221(get_values)                                                -> 
+blocks.py:344(dtype)                                                     -> 
+{built-in method builtins.getattr}                                       -> 
+managers.py:219(is_single_block)                                         ->       1    0.000    0.000  {built-in method builtins.len}
+arraysetops.py:780(_setdiff1d_dispatcher)                                -> 
+fromnumeric.py:2118(_sum_dispatcher)                                     -> 
+{method 'transpose' of 'numpy.ndarray' objects}                          -> 
+{built-in method numpy.asanyarray}                                       -> 
+{built-in method builtins.len}                                           -> 
+{method 'items' of 'dict' objects}                                       -> 
+arraysetops.py:133(_unique_dispatcher)                                   -> 
+arraysetops.py:515(_in1d_dispatcher)                                     -> 
+fromnumeric.py:432(_repeat_dispatcher)                                   -> 
+{method 'ravel' of 'numpy.ndarray' objects}                              -> 
+{built-in method numpy.asarray}                                          -> 
+multiarray.py:148(concatenate)                                           -> 
+multiarray.py:341(where)                                                 -> 
+multiarray.py:1071(copyto)                                               -> 
+{method 'disable' of '_lsprof.Profiler' objects}                         -> 
+
+
+
